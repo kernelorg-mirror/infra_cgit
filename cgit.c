@@ -64,6 +64,8 @@ void cgit_repo_config(struct cgit_repo *repo, const char *name, const char *valu
 		repo->snapshots = ctx.cfg.snapshots & cgit_parse_snapshots_mask(value);
 	else if (!strcmp(name, "enable-blame"))
 		repo->enable_blame = atoi(value);
+	else if (!strcmp(name, "enable-bugs"))
+		repo->enable_bugs = atoi(value);
 	else if (!strcmp(name, "enable-commit-graph"))
 		repo->enable_commit_graph = atoi(value);
 	else if (!strcmp(name, "enable-follow-links"))
@@ -116,6 +118,8 @@ void cgit_repo_config(struct cgit_repo *repo, const char *name, const char *valu
 	else if (ctx.cfg.enable_filter_overrides) {
 		if (!strcmp(name, "about-filter"))
 			repo->about_filter = cgit_new_filter(value, ABOUT);
+		else if (!strcmp(name, "bugs-filter"))
+			repo->bugs_filter = cgit_new_filter(value, BUGS);
 		else if (!strcmp(name, "commit-filter"))
 			repo->commit_filter = cgit_new_filter(value, COMMIT);
 		else if (!strcmp(name, "source-filter"))
@@ -187,6 +191,8 @@ static void config_cb(const char *name, const char *value)
 		ctx.cfg.enable_index_owner = atoi(value);
 	else if (!strcmp(name, "enable-blame"))
 		ctx.cfg.enable_blame = atoi(value);
+	else if (!strcmp(name, "enable-bugs"))
+		ctx.cfg.enable_bugs = atoi(value);
 	else if (!strcmp(name, "enable-commit-graph"))
 		ctx.cfg.enable_commit_graph = atoi(value);
 	else if (!strcmp(name, "enable-log-filecount"))
@@ -223,12 +229,16 @@ static void config_cb(const char *name, const char *value)
 		ctx.cfg.cache_dynamic_ttl = atoi(value);
 	else if (!strcmp(name, "cache-about-ttl"))
 		ctx.cfg.cache_about_ttl = atoi(value);
+	else if (!strcmp(name, "cache-bugs-ttl"))
+		ctx.cfg.cache_bugs_ttl = atoi(value);
 	else if (!strcmp(name, "cache-snapshot-ttl"))
 		ctx.cfg.cache_snapshot_ttl = atoi(value);
 	else if (!strcmp(name, "case-sensitive-sort"))
 		ctx.cfg.case_sensitive_sort = atoi(value);
 	else if (!strcmp(name, "about-filter"))
 		ctx.cfg.about_filter = cgit_new_filter(value, ABOUT);
+	else if (!strcmp(name, "bugs-filter"))
+		ctx.cfg.bugs_filter = cgit_new_filter(value, BUGS);
 	else if (!strcmp(name, "commit-filter"))
 		ctx.cfg.commit_filter = cgit_new_filter(value, COMMIT);
 	else if (!strcmp(name, "email-filter"))
@@ -379,6 +389,7 @@ static void prepare_context(void)
 	ctx.cfg.cache_max_create_time = 5;
 	ctx.cfg.cache_root = CGIT_CACHE_ROOT;
 	ctx.cfg.cache_about_ttl = 15;
+	ctx.cfg.cache_bugs_ttl = 15;
 	ctx.cfg.cache_snapshot_ttl = 5;
 	ctx.cfg.cache_repo_ttl = 5;
 	ctx.cfg.cache_root_ttl = 5;
@@ -827,6 +838,8 @@ static void print_repo(FILE *f, struct cgit_repo *repo)
 		fprintf(f, "repo.clone-url=%s\n", repo->clone_url);
 	fprintf(f, "repo.enable-blame=%d\n",
 	        repo->enable_blame);
+	fprintf(f, "repo.enable-bugs=%d\n",
+	        repo->enable_bugs);
 	fprintf(f, "repo.enable-commit-graph=%d\n",
 	        repo->enable_commit_graph);
 	fprintf(f, "repo.enable-follow-links=%d\n",
@@ -837,6 +850,8 @@ static void print_repo(FILE *f, struct cgit_repo *repo)
 	        repo->enable_log_linecount);
 	if (repo->about_filter && repo->about_filter != ctx.cfg.about_filter)
 		cgit_fprintf_filter(repo->about_filter, f, "repo.about-filter=");
+	if (repo->bugs_filter && repo->bugs_filter != ctx.cfg.bugs_filter)
+		cgit_fprintf_filter(repo->bugs_filter, f, "repo.bugs-filter=");
 	if (repo->commit_filter && repo->commit_filter != ctx.cfg.commit_filter)
 		cgit_fprintf_filter(repo->commit_filter, f, "repo.commit-filter=");
 	if (repo->source_filter && repo->source_filter != ctx.cfg.source_filter)
@@ -1076,6 +1091,9 @@ static int calc_ttl(void)
 
 	if (!strcmp(ctx.qry.page, "about"))
 		return ctx.cfg.cache_about_ttl;
+
+	if (!strcmp(ctx.qry.page, "bugs"))
+		return ctx.cfg.cache_bugs_ttl;
 
 	if (!strcmp(ctx.qry.page, "snapshot"))
 		return ctx.cfg.cache_snapshot_ttl;

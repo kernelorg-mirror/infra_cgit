@@ -34,6 +34,15 @@ about-filter::
 	included verbatim on the about page. Default value: none. See
 	also: "FILTER API".
 
+bugs-filter::
+	Specifies a command which will be invoked to render the bugs page
+	for repositories that use git-bug (https://github.com/git-bug/git-bug).
+	The filter receives the path component as its first argument: an
+	empty string for the bug list, or a bug ID for the detail view.
+	The filter is responsible for reading git-bug data from the
+	repository and producing HTML output. Default value: none. See
+	also: "enable-bugs", "FILTER API".
+
 agefile::
 	Specifies a path, relative to each repository path, which can be used
 	to specify the date and time of the youngest commit in the repository.
@@ -57,6 +66,11 @@ branch-sort::
 cache-about-ttl::
 	Number which specifies the time-to-live, in minutes, for the cached
 	version of the repository about page. See also: "CACHE". Default
+	value: "15".
+
+cache-bugs-ttl::
+	Number which specifies the time-to-live, in minutes, for the cached
+	version of the repository bugs page. See also: "CACHE". Default
 	value: "15".
 
 cache-dynamic-ttl::
@@ -146,6 +160,11 @@ enable-blame::
 	Flag which, when set to "1", will allow cgit to provide a "blame" page
 	for files, and will make it generate links to that page in appropriate
 	places. Default value: "0".
+
+enable-bugs::
+	Flag which, when set to "1", will add a "bugs" tab to the repository
+	navigation for browsing git-bug issues. Requires a "bugs-filter" to
+	be configured. Default value: "0".
 
 enable-commit-graph::
 	Flag which, when set to "1", will make cgit print an ASCII-art commit
@@ -518,6 +537,10 @@ repo.defbranch::
 repo.desc::
 	The value to show as repository description. Default value: none.
 
+repo.bugs-filter::
+	Override the default bugs-filter. Default value: none. See also:
+	"enable-filter-overrides". See also: "FILTER API".
+
 repo.email-filter::
 	Override the default email-filter. Default value: none. See also:
 	"enable-filter-overrides". See also: "FILTER API".
@@ -525,6 +548,10 @@ repo.email-filter::
 repo.enable-blame::
 	A flag which can be used to disable the global setting
 	`enable-blame'. Default value: none.
+
+repo.enable-bugs::
+	A flag which can be used to disable the global setting
+	`enable-bugs'. Default value: none.
 
 repo.enable-commit-graph::
 	A flag which can be used to disable the global setting
@@ -873,6 +900,11 @@ enable-index-links=1
 
 # Enable blame page and create links to it from tree page
 enable-blame=1
+
+
+# Enable git-bug browsing for repos that have it
+enable-bugs=1
+bugs-filter=lua:/usr/share/cgit/filters/bugs-git-bug.lua
 
 
 # Enable ASCII art commit history graph on the log pages
