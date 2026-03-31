@@ -516,6 +516,12 @@ void cgit_stats_link(const char *name, const char *title, const char *class,
 	reporevlink("stats", name, title, class, head, NULL, path);
 }
 
+void cgit_bugs_link(const char *name, const char *title, const char *class,
+		    const char *path)
+{
+	reporevlink("bugs", name, title, class, NULL, NULL, path);
+}
+
 static void cgit_self_link(char *name, const char *title, const char *class)
 {
 	if (!strcmp(ctx.qry.page, "repolist"))
@@ -567,6 +573,8 @@ static void cgit_self_link(char *name, const char *title, const char *class)
 	else if (!strcmp(ctx.qry.page, "stats"))
 		cgit_stats_link(name, title, class, ctx.qry.head,
 				ctx.qry.path);
+	else if (!strcmp(ctx.qry.page, "bugs"))
+		cgit_bugs_link(name, title, class, ctx.qry.path);
 	else {
 		/* Don't known how to make link for this page */
 		repolink(title, class, ctx.qry.page, ctx.qry.head, ctx.qry.path);
@@ -1107,6 +1115,10 @@ void cgit_print_pageheader(void)
 				 ctx.qry.head, ctx.qry.oid, ctx.qry.vpath);
 		cgit_diff_link("diff", NULL, hc("diff"), ctx.qry.head,
 			       ctx.qry.oid, ctx.qry.oid2, ctx.qry.vpath);
+		if (ctx.repo->enable_bugs)
+			reporevlink("bugs", "bugs", NULL,
+				    hc("bugs"), ctx.qry.head, NULL,
+				    NULL);
 		if (ctx.repo->max_stats)
 			cgit_stats_link("stats", NULL, hc("stats"),
 					ctx.qry.head, ctx.qry.vpath);
