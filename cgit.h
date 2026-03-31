@@ -63,7 +63,7 @@ typedef enum {
 } diff_type;
 
 typedef enum {
-	ABOUT, COMMIT, SOURCE, EMAIL, AUTH, OWNER
+	ABOUT, COMMIT, SOURCE, EMAIL, AUTH, OWNER, BUGS
 } filter_type;
 
 struct cgit_filter {
@@ -100,6 +100,7 @@ struct cgit_repo {
 	char *snapshot_prefix;
 	int snapshots;
 	int enable_blame;
+	int enable_bugs;
 	int enable_commit_graph;
 	int enable_follow_links;
 	int enable_log_filecount;
@@ -112,6 +113,7 @@ struct cgit_repo {
 	int commit_sort;
 	time_t mtime;
 	struct cgit_filter *about_filter;
+	struct cgit_filter *bugs_filter;
 	struct cgit_filter *commit_filter;
 	struct cgit_filter *source_filter;
 	struct cgit_filter *email_filter;
@@ -226,6 +228,7 @@ struct cgit_config {
 	int cache_scanrc_ttl;
 	int cache_static_ttl;
 	int cache_about_ttl;
+	int cache_bugs_ttl;
 	int cache_snapshot_ttl;
 	int case_sensitive_sort;
 	int embedded;
@@ -235,6 +238,7 @@ struct cgit_config {
 	int enable_index_links;
 	int enable_index_owner;
 	int enable_blame;
+	int enable_bugs;
 	int enable_commit_graph;
 	int enable_log_filecount;
 	int enable_log_linecount;
@@ -269,6 +273,7 @@ struct cgit_config {
 	struct string_list mimetypes;
 	struct string_list js;
 	struct cgit_filter *about_filter;
+	struct cgit_filter *bugs_filter;
 	struct cgit_filter *commit_filter;
 	struct cgit_filter *source_filter;
 	struct cgit_filter *email_filter;

@@ -907,3 +907,106 @@ div#cgit table.ssdiff td.space {
 div#cgit table.ssdiff td.space div {
 	min-height: 3em;
 }
+
+/* bugs page */
+
+div#cgit div#bugs .bug-counts {
+	margin: 0.5em 0 1em 0;
+}
+
+div#cgit div#bugs .bug-counts a {
+	padding: 3px 10px;
+	border: 1px solid #d1d5da;
+	border-radius: 3px;
+	margin-right: 4px;
+	color: #333;
+}
+
+div#cgit div#bugs .bug-counts a.active {
+	background: #333;
+	color: #fff;
+	border-color: #333;
+}
+
+div#cgit div#bugs table.list td.id {
+	font-family: monospace;
+	white-space: nowrap;
+}
+
+div#cgit div#bugs table.list td.comments {
+	text-align: center;
+	color: #666;
+	white-space: nowrap;
+}
+
+div#cgit div#bugs table.list td.age {
+	white-space: nowrap;
+}
+
+div#cgit div#bugs .bug-labels span {
+	display: inline-block;
+	padding: 0 4px;
+	margin: 0 1px;
+	background: #e4e4e4;
+	border: 1px solid #d1d5da;
+	border-radius: 3px;
+	font-size: 90%;
+}
+
+div#cgit div#bugs .bug-status-open {
+	color: #fff;
+	background: #2cbe4e;
+	padding: 1px 6px;
+	border-radius: 3px;
+	font-weight: bold;
+	font-size: 90%;
+}
+
+div#cgit div#bugs .bug-status-closed {
+	color: #fff;
+	background: #cb2431;
+	padding: 1px 6px;
+	border-radius: 3px;
+	font-weight: bold;
+	font-size: 90%;
+}
+
+div#cgit div#bugs .comment {
+	border: 1px solid #d1d5da;
+	border-radius: 3px;
+	margin: 8px 0;
+}
+
+div#cgit div#bugs .comment-header {
+	background: #f1f8ff;
+	padding: 6px 10px;
+	border-bottom: 1px solid #d1d5da;
+	color: #555;
+	font-size: 95%;
+}
+
+div#cgit div#bugs .comment-header a.date {
+	float: right;
+	font-weight: normal;
+	color: #666;
+}
+
+div#cgit div#bugs .comment-body {
+	padding: 8px 12px;
+	white-space: pre-wrap;
+	font-family: monospace;
+	font-size: 95%;
+	line-height: 1.45;
+}
+
+div#cgit div#bugs .pager {
+	margin: 1em 0;
+}
+
+div#cgit div#bugs .pager a {
+	padding: 3px 10px;
+	border: 1px solid #d1d5da;
+	border-radius: 3px;
+	margin-right: 4px;
+	color: #333;
+}

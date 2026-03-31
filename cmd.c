@@ -13,6 +13,7 @@
 #include "ui-atom.h"
 #include "ui-blame.h"
 #include "ui-blob.h"
+#include "ui-bugs.h"
 #include "ui-clone.h"
 #include "ui-commit.h"
 #include "ui-diff.h"
@@ -70,6 +71,14 @@ static void blame_fn(void)
 		cgit_print_blame();
 	else
 		cgit_print_error_page(403, "Forbidden", "Blame is disabled");
+}
+
+static void bugs_fn(void)
+{
+	if (ctx.repo->enable_bugs)
+		cgit_print_bugs();
+	else
+		cgit_print_error_page(403, "Forbidden", "Bug tracker view is not enabled");
 }
 
 static void blob_fn(void)
@@ -175,6 +184,7 @@ struct cgit_cmd *cgit_get_cmd(void)
 		def_cmd(about, 0, 0, 0),
 		def_cmd(blame, 1, 1, 0),
 		def_cmd(blob, 1, 0, 0),
+		def_cmd(bugs, 1, 0, 0),
 		def_cmd(commit, 1, 1, 0),
 		def_cmd(diff, 1, 1, 0),
 		def_cmd(info, 1, 0, 1),

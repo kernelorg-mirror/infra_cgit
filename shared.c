@@ -62,6 +62,7 @@ struct cgit_repo *cgit_add_repo(const char *url)
 	ret->section = ctx.cfg.section;
 	ret->snapshots = ctx.cfg.snapshots;
 	ret->enable_blame = ctx.cfg.enable_blame;
+	ret->enable_bugs = ctx.cfg.enable_bugs;
 	ret->enable_commit_graph = ctx.cfg.enable_commit_graph;
 	ret->enable_follow_links = ctx.cfg.enable_follow_links;
 	ret->enable_log_filecount = ctx.cfg.enable_log_filecount;
@@ -76,6 +77,7 @@ struct cgit_repo *cgit_add_repo(const char *url)
 	ret->readme = ctx.cfg.readme;
 	ret->mtime = -1;
 	ret->about_filter = ctx.cfg.about_filter;
+	ret->bugs_filter = ctx.cfg.bugs_filter;
 	ret->commit_filter = ctx.cfg.commit_filter;
 	ret->source_filter = ctx.cfg.source_filter;
 	ret->email_filter = ctx.cfg.email_filter;
