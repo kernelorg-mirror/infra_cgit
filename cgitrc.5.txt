@@ -202,6 +202,33 @@ enable-log-linecount::
 	and removed lines for each commit on the repository log page. Default
 	value: "0".
 
+enable-object-reachability-check::
+	Flag which, when set to "1", will make cgit refuse to display an
+	object that is not reachable from any reference in the repository,
+	answering with "404 Not found" instead. This is only useful where
+	several repositories share an object database, for example through
+	`objects/info/alternates`: every object is then readable from every
+	repository, so each object has as many valid URLs as there are
+	repositories sharing the database, and cgit will render and cache a
+	page for each one of them.
++
+The reference set used is the one shown on the refs page, so branches and
+tags always, and remote branches only when "enable-remote-branches" is
+set.
++
+Blobs and trees are treated differently, because whether one occurs
+somewhere in the history cannot be determined without walking every object
+in the repository. Such an object is displayed only when a reference points
+straight at it, which is the case cgit itself links to by raw object id.
+Requesting a blob by path through a commit is unaffected.
++
+Answering the question means walking history, which is affordable only
+when the repository has a commit-graph; without one the walk is bounded by
+commit dates rather than by generation numbers and takes orders of
+magnitude longer. Do not enable this on repositories of any size unless
+`git commit-graph write` is part of their maintenance. Default value: "0".
+See also: "repo.enable-object-reachability-check".
+
 enable-remote-branches::
 	Flag which, when set to "1", will make cgit display remote branches
 	in the summary and refs views. Default value: "0". See also:
@@ -518,6 +545,10 @@ repo.enable-log-filecount::
 repo.enable-log-linecount::
 	A flag which can be used to disable the global setting
 	`enable-log-linecount'. Default value: none.
+
+repo.enable-object-reachability-check::
+	A flag which can be used to override the global setting
+	`enable-object-reachability-check'. Default value: none.
 
 repo.enable-remote-branches::
 	Flag which, when set to "1", will make cgit display remote branches

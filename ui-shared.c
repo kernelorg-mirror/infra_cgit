@@ -886,6 +886,32 @@ void cgit_print_docend(void)
 	html("</body>\n</html>\n");
 }
 
+/* Reject a request for an object that this repository does not publish. This
+ * only matters where several repositories share an object database: an object
+ * is then readable from every one of them, and each has as many valid URLs for
+ * it as there are repositories.
+ *
+ * A revision that does not resolve at all is left to the page handler, which
+ * reports it in its own words. Conflating the two would tell the visitor that
+ * an object is unknown when in fact it exists and simply does not belong here.
+ */
+int cgit_reject_unreachable_object(const char *rev)
+{
+	struct object_id oid;
+
+	if (!ctx.repo || !ctx.repo->enable_object_reachability_check)
+		return 0;
+	if (!rev || repo_get_oid(the_repository, rev, &oid))
+		return 0;
+	if (cgit_oid_is_reachable(&oid))
+		return 0;
+
+	cgit_print_error_page(404, "Not found",
+			      "Object %s is not reachable from any reference "
+			      "in this repository", rev);
+	return 1;
+}
+
 void cgit_print_error_page(int code, const char *msg, const char *fmt, ...)
 {
 	va_list ap;

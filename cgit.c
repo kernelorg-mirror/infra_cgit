@@ -72,6 +72,8 @@ void cgit_repo_config(struct cgit_repo *repo, const char *name, const char *valu
 		repo->enable_log_filecount = atoi(value);
 	else if (!strcmp(name, "enable-log-linecount"))
 		repo->enable_log_linecount = atoi(value);
+	else if (!strcmp(name, "enable-object-reachability-check"))
+		repo->enable_object_reachability_check = atoi(value);
 	else if (!strcmp(name, "enable-remote-branches"))
 		repo->enable_remote_branches = atoi(value);
 	else if (!strcmp(name, "enable-subject-links"))
@@ -191,6 +193,8 @@ static void config_cb(const char *name, const char *value)
 		ctx.cfg.enable_log_filecount = atoi(value);
 	else if (!strcmp(name, "enable-log-linecount"))
 		ctx.cfg.enable_log_linecount = atoi(value);
+	else if (!strcmp(name, "enable-object-reachability-check"))
+		ctx.cfg.enable_object_reachability_check = atoi(value);
 	else if (!strcmp(name, "enable-remote-branches"))
 		ctx.cfg.enable_remote_branches = atoi(value);
 	else if (!strcmp(name, "enable-subject-links"))
@@ -765,6 +769,10 @@ static void process_request(void)
 	if (ctx.repo && prepare_repo_cmd(nongit))
 		return;
 
+	if (cgit_reject_unreachable_object(ctx.qry.oid) ||
+	    cgit_reject_unreachable_object(ctx.qry.oid2))
+		return;
+
 	cmd->fn();
 }
 
@@ -851,6 +859,8 @@ static void print_repo(FILE *f, struct cgit_repo *repo)
 		fprintf(f, "repo.logo=%s\n", repo->logo);
 	if (repo->logo_link)
 		fprintf(f, "repo.logo-link=%s\n", repo->logo_link);
+	fprintf(f, "repo.enable-object-reachability-check=%d\n",
+		repo->enable_object_reachability_check);
 	fprintf(f, "repo.enable-remote-branches=%d\n", repo->enable_remote_branches);
 	fprintf(f, "repo.enable-subject-links=%d\n", repo->enable_subject_links);
 	fprintf(f, "repo.enable-html-serving=%d\n", repo->enable_html_serving);

@@ -7,6 +7,7 @@
 
 #include <archive.h>
 #include <commit.h>
+#include <commit-reach.h>
 #include <diffcore.h>
 #include <diff.h>
 #include <environment.h>
@@ -104,6 +105,7 @@ struct cgit_repo {
 	int enable_follow_links;
 	int enable_log_filecount;
 	int enable_log_linecount;
+	int enable_object_reachability_check;
 	int enable_remote_branches;
 	int enable_subject_links;
 	int enable_html_serving;
@@ -238,6 +240,7 @@ struct cgit_config {
 	int enable_commit_graph;
 	int enable_log_filecount;
 	int enable_log_linecount;
+	int enable_object_reachability_check;
 	int enable_remote_branches;
 	int enable_subject_links;
 	int enable_html_serving;
@@ -346,6 +349,8 @@ extern void strbuf_ensure_end(struct strbuf *sb, char c);
 extern void cgit_add_ref(struct reflist *list, struct refinfo *ref);
 extern void cgit_free_reflist_inner(struct reflist *list);
 extern int cgit_refs_cb(const struct reference *ref, void *cb_data);
+
+extern int cgit_oid_is_reachable(const struct object_id *oid);
 
 extern void cgit_free_commitinfo(struct commitinfo *info);
 extern void cgit_free_taginfo(struct taginfo *info);
