@@ -587,9 +587,12 @@ static void prepare_repo_env(int *nongit)
 
 	/* Setup the git directory and initialize the notes system. Both of these
 	 * load local configuration from the git repository, so we do them both while
-	 * the HOME variables are unset. */
+	 * the HOME variables are unset. The notes system resolves a ref, which
+	 * needs a repository: skip it when the setup above failed, and let
+	 * prepare_repo_cmd() report the failure instead. */
 	setup_git_directory_gently(nongit);
-	load_display_notes(NULL);
+	if (!*nongit)
+		load_display_notes(NULL);
 }
 
 static int prepare_repo_cmd(int nongit)
