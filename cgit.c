@@ -881,20 +881,51 @@ static void print_repolist(FILE *f, struct cgit_repolist *list, int start)
 static int generate_cached_repolist(const char *path, const char *cached_rc)
 {
 	struct strbuf locked_rc = STRBUF_INIT;
+	struct flock lock = {
+		.l_type = F_WRLCK,
+		.l_whence = SEEK_SET,
+		.l_start = 0,
+		.l_len = 0,
+	};
 	int result = 0;
 	int idx;
+	int fd;
 	FILE *f;
 
 	strbuf_addf(&locked_rc, "%s.lock", cached_rc);
-	f = fopen(locked_rc.buf, "wx");
-	if (!f) {
-		/* Inform about the error unless the lockfile already existed,
-		 * since that only means we've got concurrent requests.
+	fd = open(locked_rc.buf, O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR);
+	if (fd == -1) {
+		result = errno;
+		fprintf(stderr, "[cgit] Error opening %s: %s (%d)\n",
+			locked_rc.buf, strerror(result), result);
+		goto out;
+	}
+	/* Serialize on an advisory lock rather than on the mere existence of
+	 * the lockfile: a cgit process which dies before it can rename the
+	 * lockfile into place must not keep every later process from
+	 * refreshing the cached repolist.
+	 */
+	if (fcntl(fd, F_SETLK, &lock) == -1) {
+		/* Another process is generating the repolist, so leave it to
+		 * that one. This is not an error worth reporting.
 		 */
 		result = errno;
-		if (result != EEXIST)
-			fprintf(stderr, "[cgit] Error opening %s: %s (%d)\n",
-				locked_rc.buf, strerror(result), result);
+		close(fd);
+		goto out;
+	}
+	if (ftruncate(fd, 0) == -1) {
+		result = errno;
+		fprintf(stderr, "[cgit] Error truncating %s: %s (%d)\n",
+			locked_rc.buf, strerror(result), result);
+		close(fd);
+		goto out;
+	}
+	f = fdopen(fd, "w");
+	if (!f) {
+		result = errno;
+		fprintf(stderr, "[cgit] Error opening %s: %s (%d)\n",
+			locked_rc.buf, strerror(result), result);
+		close(fd);
 		goto out;
 	}
 	idx = cgit_repolist.count;
