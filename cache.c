@@ -182,12 +182,18 @@ static int lock_slot(struct cache_slot *slot)
 		.l_len = 0,
 	};
 	struct stat st_fd, st_name;
+	const char *delay;
 	int err;
 
 	slot->lock_fd = open(slot->lock_name, O_RDWR | O_CREAT,
 			     S_IRUSR | S_IWUSR);
 	if (slot->lock_fd == -1)
 		return errno;
+	/* Test hook: widen the window between open() and F_SETLK so that the
+	 * test suite can rename the lock file away underneath us on purpose.
+	 */
+	if ((delay = getenv("CGIT_TEST_LOCK_DELAY")))
+		sleep(atoi(delay));
 	if (fcntl(slot->lock_fd, F_SETLK, &lock) < 0) {
 		int saved_errno = errno;
 		close(slot->lock_fd);
