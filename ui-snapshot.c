@@ -305,6 +305,15 @@ void cgit_print_snapshot(const char *head, const char *hex,
 	if (!hex)
 		hex = head;
 
+	/* The revision may have come from the filename rather than from the
+	 * query string, so it has not been checked by the dispatcher yet.
+	 */
+	if (cgit_reject_unreachable_object(hex)) {
+		free(prefix);
+		free(adj_filename);
+		return;
+	}
+
 	if (!prefix)
 		prefix = xstrdup(cgit_snapshot_prefix(ctx.repo));
 
