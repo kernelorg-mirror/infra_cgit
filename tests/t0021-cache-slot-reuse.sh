@@ -43,4 +43,24 @@ test_expect_success 'no stale content is left behind in the slot' '
 	test "$(tail -n 1 output.cached)" = "</html>"
 '
 
+# The lock file can be renamed over the cache slot by the process that
+# holds it in the window between our open() and our F_SETLK. The lock we
+# then acquire is on the live cache file, and filling it clobbers a slot
+# other processes are streaming. CGIT_TEST_LOCK_DELAY widens that window
+# so we can perform the rename at exactly the wrong moment.
+rename_lock_during_fill() {
+	CGIT_TEST_LOCK_DELAY=2 cgit_url "foo/refs" >output.race &
+	cgit_pid=$!
+	sleep 1
+	mv "$lock" "$slot"
+	wait $cgit_pid
+}
+
+test_expect_success 'a slot renamed away mid-lock is left alone' '
+	rm -f cache/* &&
+	plant_junk "$lock" &&
+	rename_lock_during_fill &&
+	grep -q "$junk" "$slot"
+'
+
 test_done
