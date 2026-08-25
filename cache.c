@@ -108,6 +108,13 @@ static int print_slot(struct cache_slot *slot)
 		}
 		if (off == size)
 			return 0;
+		if (ret == 0) {
+			/* EOF before cache_st.st_size: the slot was truncated
+			 * while we were streaming it. Stop instead of asking
+			 * for the same missing bytes forever.
+			 */
+			return EIO;
+		}
 	} while (1);
 #endif
 
@@ -174,6 +181,8 @@ static int lock_slot(struct cache_slot *slot)
 		.l_start = 0,
 		.l_len = 0,
 	};
+	struct stat st_fd, st_name;
+	int err;
 
 	slot->lock_fd = open(slot->lock_name, O_RDWR | O_CREAT,
 			     S_IRUSR | S_IWUSR);
@@ -185,11 +194,36 @@ static int lock_slot(struct cache_slot *slot)
 		slot->lock_fd = -1;
 		return saved_errno;
 	}
+
+	/* Between our open() and our F_SETLK, the process that held the lock
+	 * may have renamed this very file over the cache slot and exited. In
+	 * that case the lock we just took is on the *live cache file*, not on
+	 * a lock file, and filling it would rewrite a slot that concurrent
+	 * readers are streaming. Only proceed if our descriptor still refers
+	 * to the file that lock_name points at.
+	 */
+	if (fstat(slot->lock_fd, &st_fd) || stat(slot->lock_name, &st_name) ||
+	    st_fd.st_dev != st_name.st_dev || st_fd.st_ino != st_name.st_ino) {
+		close(slot->lock_fd);
+		slot->lock_fd = -1;
+		return EAGAIN;
+	}
+
 	if (ftruncate(slot->lock_fd, 0) < 0)
-		return errno;
+		goto out_err;
 	if (xwrite(slot->lock_fd, slot->key, slot->keylen + 1) < 0)
-		return errno;
+		goto out_err;
 	return 0;
+
+out_err:
+	/* We own lock_name, so don't leave a half-written lock file (and a
+	 * leaked descriptor) behind for the next process to trip over.
+	 */
+	err = errno;
+	unlink(slot->lock_name);
+	close(slot->lock_fd);
+	slot->lock_fd = -1;
+	return err;
 }
 
 /* Release the current lockfile. If `replace_old_slot` is set the
@@ -297,7 +331,10 @@ static int process_slot(struct cache_slot *slot)
 					close_lock(slot);
 				} else {
 					close_slot(slot);
-					unlock_slot(slot, 1);
+					if ((err = unlock_slot(slot, 1)) != 0)
+						cache_log("[cgit] Unable to publish slot %s: %s (%d)\n",
+							  slot->lock_name,
+							  strerror(err), err);
 					slot->cache_fd = slot->lock_fd;
 				}
 			}
@@ -343,7 +380,9 @@ static int process_slot(struct cache_slot *slot)
 	// Lets avoid such a race by just printing the content of
 	// the lock file.
 	slot->cache_fd = slot->lock_fd;
-	unlock_slot(slot, 1);
+	if ((err = unlock_slot(slot, 1)) != 0)
+		cache_log("[cgit] Unable to publish slot %s: %s (%d)\n",
+			  slot->lock_name, strerror(err), err);
 	if ((err = print_slot(slot)) != 0) {
 		cache_log("[cgit] error printing cache %s: %s (%d)\n",
 			  slot->cache_name,
