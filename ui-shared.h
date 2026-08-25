@@ -71,6 +71,7 @@ extern void cgit_print_http_headers(void);
 extern void cgit_redirect(const char *url, bool permanent);
 extern void cgit_print_docstart(void);
 extern void cgit_print_docend(void);
+extern int cgit_reject_unreachable_object(const char *rev);
 __attribute__((format (printf,3,4)))
 extern void cgit_print_error_page(int code, const char *msg, const char *fmt, ...);
 extern void cgit_vprint_error_page(int code, const char *msg, const char *fmt, va_list ap);
