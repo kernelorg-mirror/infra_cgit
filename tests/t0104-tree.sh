@@ -29,4 +29,19 @@ test_expect_success 'verify a+b?h=1+2 link' '
 	grep "/foo+bar/tree/a+b?h=1%2b2" tmp
 '
 
+test_expect_success 'generate foo+bar/tree?h=1+2&id=<tip>' '
+	tip=$(cd repos/foo+bar && git rev-parse HEAD) &&
+	cgit_url "foo%2bbar/tree&h=1%2b2&id=$tip" >tmp
+'
+
+test_expect_success 'verify a+b?id=<tip> link' '
+	tip=$(cd repos/foo+bar && git rev-parse HEAD) &&
+	grep "/foo+bar/tree/a+b?id=$tip" tmp
+'
+
+test_expect_success 'verify no link carries both h= and id=' '
+	tr "<" "\n" <tmp | grep -o "href=[^>]*" >links &&
+	! grep -E "[?&;]id=" links | grep -qE "[?&;]h="
+'
+
 test_done
