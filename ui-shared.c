@@ -262,8 +262,20 @@ void cgit_index_link(const char *name, const char *title, const char *class,
 	site_link(NULL, name, title, class, pattern, sort, ofs, always_root);
 }
 
+/*
+ * A link carries an explicit id= parameter whenever the revision it points
+ * at differs from the current branch. When it does, h= is redundant: every
+ * page resolves its content from id= and only falls back to the branch when
+ * id= is absent. Emitting both would give the same content as many distinct
+ * URLs as there are branches containing that revision.
+ */
+static int rev_is_pinned(const char *rev)
+{
+	return rev && ctx.qry.head && strcmp(rev, ctx.qry.head);
+}
+
 static char *repolink(const char *title, const char *class, const char *page,
-		      const char *head, const char *path)
+		      const char *head, const char *rev, const char *path)
 {
 	char *delim = "?";
 
@@ -304,7 +316,8 @@ static char *repolink(const char *title, const char *class, const char *page,
 		}
 		delim = "&amp;";
 	}
-	if (head && ctx.repo->defbranch && strcmp(head, ctx.repo->defbranch)) {
+	if (!rev_is_pinned(rev) && head && ctx.repo->defbranch &&
+	    strcmp(head, ctx.repo->defbranch)) {
 		html(delim);
 		html("h=");
 		html_url_arg(head);
@@ -319,8 +332,8 @@ static void reporevlink(const char *page, const char *name, const char *title,
 {
 	char *delim;
 
-	delim = repolink(title, class, page, head, path);
-	if (rev && ctx.qry.head != NULL && strcmp(rev, ctx.qry.head)) {
+	delim = repolink(title, class, page, head, rev, path);
+	if (rev_is_pinned(rev)) {
 		html(delim);
 		html("id=");
 		html_url_arg(rev);
@@ -367,8 +380,8 @@ void cgit_log_link(const char *name, const char *title, const char *class,
 {
 	char *delim;
 
-	delim = repolink(title, class, "log", head, path);
-	if (rev && ctx.qry.head && strcmp(rev, ctx.qry.head)) {
+	delim = repolink(title, class, "log", head, rev, path);
+	if (rev_is_pinned(rev)) {
 		html(delim);
 		html("id=");
 		html_url_arg(rev);
@@ -408,8 +421,8 @@ void cgit_commit_link(const char *name, const char *title, const char *class,
 {
 	char *delim;
 
-	delim = repolink(title, class, "commit", head, path);
-	if (rev && ctx.qry.head && strcmp(rev, ctx.qry.head)) {
+	delim = repolink(title, class, "commit", head, rev, path);
+	if (rev_is_pinned(rev)) {
 		html(delim);
 		html("id=");
 		html_url_arg(rev);
@@ -466,8 +479,8 @@ void cgit_diff_link(const char *name, const char *title, const char *class,
 {
 	char *delim;
 
-	delim = repolink(title, class, "diff", head, path);
-	if (new_rev && ctx.qry.head != NULL && strcmp(new_rev, ctx.qry.head)) {
+	delim = repolink(title, class, "diff", head, new_rev, path);
+	if (rev_is_pinned(new_rev)) {
 		html(delim);
 		html("id=");
 		html_url_arg(new_rev);
@@ -569,7 +582,8 @@ static void cgit_self_link(char *name, const char *title, const char *class)
 				ctx.qry.path);
 	else {
 		/* Don't known how to make link for this page */
-		repolink(title, class, ctx.qry.page, ctx.qry.head, ctx.qry.path);
+		repolink(title, class, ctx.qry.page, ctx.qry.head, NULL,
+			 ctx.qry.path);
 		html("><!-- cgit_self_link() doesn't know how to make link for page '");
 		html_txt(ctx.qry.page);
 		html("' -->");
