@@ -33,6 +33,22 @@ test_expect_success 'root commit contains diff' '
 	grep "<div class=.add.>+1</div>" tmp
 '
 
+test_expect_success 'generate foo+bar/commit on a non-default branch' '
+	tip=$(cd repos/foo+bar && git rev-parse HEAD) &&
+	cgit_url "foo%2bbar/commit&h=1%2b2&id=$tip" >tmp
+'
+
+test_expect_success 'h= alongside id= keeps the visitor on the branch' '
+	! grep -q "^Status: 301" tmp &&
+	grep "<div class=.commit-subject.>add a+b<" tmp
+'
+
+test_expect_success 'pinned commit is still resolved without h=' '
+	tip=$(cd repos/foo+bar && git rev-parse HEAD) &&
+	cgit_url "foo%2bbar/commit&id=$tip" >tmp &&
+	grep "<div class=.commit-subject.>add a+b<" tmp
+'
+
 test_expect_success 'the branch switcher does not pin the displayed revision' '
 	tip=$(cd repos/foo && git rev-parse HEAD) &&
 	cgit_url "foo/commit&id=$tip" >tmp &&

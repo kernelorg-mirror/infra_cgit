@@ -259,7 +259,15 @@ in the repository. Such an object is displayed only when a reference points
 straight at it, which is the case cgit itself links to by raw object id.
 Requesting a blob by path through a commit is unaffected.
 +
-Answering the question means walking history, which is affordable only
+The same walk lets cgit settle a request that names both a branch and an
+object id. A commit that is on the default branch is redirected to the URL
+without the branch, so that one page is not cached once per branch that
+contains it; a commit that is only on the named branch is displayed with the
+branch kept, since it is what tells the page where the visitor is; and a
+commit on neither is refused. A diff between two object ids is displayed
+whichever branches they are on.
++
+Answering these questions means walking history, which is affordable only
 when the repository has a commit-graph; without one the walk is bounded by
 commit dates rather than by generation numbers and takes orders of
 magnitude longer. Do not enable this on repositories of any size unless
