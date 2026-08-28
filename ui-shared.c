@@ -841,6 +841,38 @@ static void copy_query_without(struct strbuf *sb, const char * const *drop)
 	}
 }
 
+/* Copy the query string, substituting a new value for h= and dropping
+ * url= entirely (the caller reconstructs the path from ctx.qry.url).
+ */
+static void copy_query_replacing_head(struct strbuf *sb, const char *newhead)
+{
+	const char *q = ctx.env.query_string;
+
+	while (q && *q) {
+		const char *end = strchrnul(q, '&');
+		size_t len = end - q;
+		const char *namep = q;
+		char *decoded = url_decode_parameter_name(&namep);
+		int is_url = !strcmp(decoded, "url");
+		int is_head = !strcmp(decoded, "h");
+
+		free(decoded);
+		if (is_url) {
+			q = *end ? end + 1 : end;
+			continue;
+		}
+		if (sb->len)
+			strbuf_addch(sb, '&');
+		if (is_head) {
+			strbuf_addstr(sb, "h=");
+			strbuf_add_percentencode(sb, newhead, 0);
+		} else {
+			strbuf_add(sb, q, len);
+		}
+		q = *end ? end + 1 : end;
+	}
+}
+
 /* Whether ctx.qry.head is redundant on this request: either id= already
  * pins the content and h= adds nothing, or h= merely repeats the
  * repository's default branch with no id= given.
@@ -858,6 +890,37 @@ int cgit_redirect_redundant_head(void)
 		return 0;
 
 	copy_query_without(&query, drop);
+	path = cgit_currenturl();
+	cgit_redirect_query(path, query.buf, true);
+	free(path);
+	strbuf_release(&query);
+	return 1;
+}
+
+/* Collapse an explicit refs/heads/ prefix on h= down to the branch name
+ * alone, provided a tag by the same name doesn't exist (a tag would
+ * shadow the bare name in gitrevisions(7) resolution order).
+ */
+int cgit_redirect_canonical_head(void)
+{
+	const char *branch;
+	struct strbuf tagref = STRBUF_INIT;
+	struct strbuf query = STRBUF_INIT;
+	char *path;
+	int shadowed;
+
+	if (!ctx.repo || !ctx.qry.head || ctx.qry.nohead)
+		return 0;
+	if (!skip_prefix(ctx.qry.head, "refs/heads/", &branch) || !*branch)
+		return 0;
+
+	strbuf_addf(&tagref, "refs/tags/%s", branch);
+	shadowed = refs_ref_exists(get_main_ref_store(the_repository), tagref.buf);
+	strbuf_release(&tagref);
+	if (shadowed)
+		return 0;
+
+	copy_query_replacing_head(&query, branch);
 	path = cgit_currenturl();
 	cgit_redirect_query(path, query.buf, true);
 	free(path);
