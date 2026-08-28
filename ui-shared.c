@@ -814,6 +814,57 @@ void cgit_redirect_query(const char *path, const char *query, bool permanent)
 	redirect(path, query, permanent);
 }
 
+/* Copy the query string, dropping any parameter whose name matches an
+ * entry in the NULL-terminated drop list.
+ */
+static void copy_query_without(struct strbuf *sb, const char * const *drop)
+{
+	const char *q = ctx.env.query_string;
+
+	while (q && *q) {
+		const char *end = strchrnul(q, '&');
+		size_t len = end - q;
+		const char *namep = q;
+		char *decoded = url_decode_parameter_name(&namep);
+		const char * const *name;
+
+		for (name = drop; *name; name++)
+			if (!strcmp(decoded, *name))
+				break;
+		free(decoded);
+		if (!*name) {
+			if (sb->len)
+				strbuf_addch(sb, '&');
+			strbuf_add(sb, q, len);
+		}
+		q = *end ? end + 1 : end;
+	}
+}
+
+/* Whether ctx.qry.head is redundant on this request: either id= already
+ * pins the content and h= adds nothing, or h= merely repeats the
+ * repository's default branch with no id= given.
+ */
+int cgit_redirect_redundant_head(void)
+{
+	struct strbuf query = STRBUF_INIT;
+	static const char * const drop[] = { "h", "url", NULL };
+	char *path;
+
+	if (!ctx.repo || !ctx.qry.head || ctx.qry.nohead)
+		return 0;
+	if (!ctx.qry.oid &&
+	    (!ctx.repo->defbranch || strcmp(ctx.qry.head, ctx.repo->defbranch)))
+		return 0;
+
+	copy_query_without(&query, drop);
+	path = cgit_currenturl();
+	cgit_redirect_query(path, query.buf, true);
+	free(path);
+	strbuf_release(&query);
+	return 1;
+}
+
 static void print_rel_vcs_link(const char *url)
 {
 	html("<link rel='vcs-git' href='");
