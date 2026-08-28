@@ -795,6 +795,9 @@ static void process_request(void)
 	if (cgit_redirect_canonical_head())
 		return;
 
+	if (cgit_redirect_pathless_commit())
+		return;
+
 	if (cgit_reject_unreachable_object(ctx.qry.oid) ||
 	    cgit_reject_unreachable_object(ctx.qry.oid2))
 		return;
