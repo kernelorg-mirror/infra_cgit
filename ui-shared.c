@@ -936,6 +936,82 @@ int cgit_redirect_canonical_head(void)
 	return 1;
 }
 
+static int is_commit_diff_page(const char *page)
+{
+	static const char * const pages[] = {
+		"commit", "diff", "patch", "rawdiff", NULL
+	};
+	const char * const *p;
+
+	for (p = pages; *p; p++)
+		if (!strcmp(page, *p))
+			return 1;
+	return 0;
+}
+
+static int path_touched_by_commit;
+
+static void mark_path_touched(struct diff_filepair *pair)
+{
+	path_touched_by_commit = 1;
+}
+
+/* Whether path= changes anything on a commit/diff/patch/rawdiff page:
+ * if the pinned commit doesn't touch that path, the page's output would
+ * be identical without it.
+ */
+/* The canonical URL for this page with no in-project path: the repository
+ * and the page, and nothing else. cgit_currenturl() cannot serve here --
+ * when the request arrived as PATH_INFO the path is part of ctx.qry.url, so
+ * rebuilding from it would keep the very path this redirect drops and send
+ * the request straight back to itself.
+ */
+static char *pathless_commit_url(void)
+{
+	const char *root = cgit_rooturl();
+	struct strbuf url = STRBUF_INIT;
+
+	strbuf_addstr(&url, root);
+	if (url.len && url.buf[url.len - 1] != '/')
+		strbuf_addch(&url, '/');
+	strbuf_addf(&url, "%s/%s", ctx.repo->url, ctx.qry.page);
+	return strbuf_detach(&url, NULL);
+}
+
+int cgit_redirect_pathless_commit(void)
+{
+	struct object_id oid;
+	struct commit *commit;
+	struct strbuf query = STRBUF_INIT;
+	static const char * const drop[] = { "path", "url", NULL };
+	char *path;
+
+	if (!ctx.repo || !ctx.qry.path || !*ctx.qry.path)
+		return 0;
+	if (ctx.qry.oid2)
+		return 0;
+	if (!ctx.qry.page || !is_commit_diff_page(ctx.qry.page))
+		return 0;
+	if (!ctx.qry.oid || repo_get_oid(the_repository, ctx.qry.oid, &oid))
+		return 0;
+
+	commit = lookup_commit_reference(the_repository, &oid);
+	if (!commit || repo_parse_commit(the_repository, commit))
+		return 0;
+
+	path_touched_by_commit = 0;
+	cgit_diff_commit(commit, mark_path_touched, ctx.qry.path);
+	if (path_touched_by_commit)
+		return 0;
+
+	copy_query_without(&query, drop);
+	path = pathless_commit_url();
+	cgit_redirect_query(path, query.buf, true);
+	free(path);
+	strbuf_release(&query);
+	return 1;
+}
+
 static void print_rel_vcs_link(const char *url)
 {
 	html("<link rel='vcs-git' href='");
