@@ -38,7 +38,15 @@ test_expect_success 'generate foo+bar/commit on a non-default branch' '
 	cgit_url "foo%2bbar/commit&h=1%2b2&id=$tip" >tmp
 '
 
+test_expect_success 'redundant h= alongside id= is redirected away' '
+	tip=$(cd repos/foo+bar && git rev-parse HEAD) &&
+	grep -q "^Status: 301 Moved" tmp &&
+	grep -q "^Location: /foo+bar/commit?id=$tip\$" tmp
+'
+
 test_expect_success 'pinned commit is still resolved without h=' '
+	tip=$(cd repos/foo+bar && git rev-parse HEAD) &&
+	cgit_url "foo%2bbar/commit&id=$tip" >tmp &&
 	grep "<div class=.commit-subject.>add a+b<" tmp
 '
 

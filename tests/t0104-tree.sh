@@ -34,8 +34,15 @@ test_expect_success 'generate foo+bar/tree?h=1+2&id=<tip>' '
 	cgit_url "foo%2bbar/tree&h=1%2b2&id=$tip" >tmp
 '
 
+test_expect_success 'redundant h= alongside id= is redirected away' '
+	tip=$(cd repos/foo+bar && git rev-parse HEAD) &&
+	grep -q "^Status: 301 Moved" tmp &&
+	grep -q "^Location: /foo+bar/tree?id=$tip\$" tmp
+'
+
 test_expect_success 'verify a+b?id=<tip> link' '
 	tip=$(cd repos/foo+bar && git rev-parse HEAD) &&
+	cgit_url "foo%2bbar/tree&id=$tip" >tmp &&
 	grep "/foo+bar/tree/a+b?id=$tip" tmp
 '
 
