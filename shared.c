@@ -228,6 +228,7 @@ int cgit_refs_cb(const struct reference *ref, void *cb_data)
 }
 
 struct reachability_tips {
+	struct repository *repo;
 	struct commit **commits;
 	size_t nr;
 	size_t alloc;
@@ -238,7 +239,7 @@ static int collect_reachability_tip(const struct reference *ref, void *cb_data)
 	struct reachability_tips *tips = cb_data;
 	struct commit *commit;
 
-	commit = lookup_commit_reference_gently(the_repository, ref->oid, 1);
+	commit = lookup_commit_reference_gently(tips->repo, ref->oid, 1);
 	if (!commit)
 		return 0;
 	ALLOC_GROW(tips->commits, tips->nr + 1, tips->alloc);
@@ -246,23 +247,30 @@ static int collect_reachability_tip(const struct reference *ref, void *cb_data)
 	return 0;
 }
 
-/* Walk the references this repository publishes. The set deliberately mirrors
- * the one shown by the refs page, so that an object is never refused here
- * while remaining visible there, or the other way around.
+/* Walk the references that 'repo' publishes. The set deliberately mirrors the
+ * one shown by the refs page, so that an object is never refused here while
+ * remaining visible there, or the other way around.
+ *
+ * 'r' is the object database to read them from and 'repo' the configuration
+ * that decides which of them count. The two are separate because the caller
+ * may be asking about a repository other than the one being served.
  */
-static void for_each_published_ref(refs_for_each_cb fn, void *cb_data)
+static void for_each_published_ref(struct repository *r,
+				   const struct cgit_repo *repo,
+				   refs_for_each_cb fn, void *cb_data)
 {
-	struct ref_store *refs = get_main_ref_store(the_repository);
+	struct ref_store *refs = get_main_ref_store(r);
 
 	if (refs_for_each_branch_ref(refs, fn, cb_data))
 		return;
 	if (refs_for_each_tag_ref(refs, fn, cb_data))
 		return;
-	if (ctx.repo && ctx.repo->enable_remote_branches)
+	if (repo && repo->enable_remote_branches)
 		refs_for_each_remote_ref(refs, fn, cb_data);
 }
 
 struct ref_target_match {
+	struct repository *repo;
 	const struct object_id *oid;
 	int found;
 };
@@ -276,12 +284,12 @@ static int match_ref_target(const struct reference *ref, void *cb_data)
 		match->found = 1;
 		return 1;
 	}
-	if (odb_read_object_info(the_repository->objects, ref->oid, NULL) != OBJ_TAG)
+	if (odb_read_object_info(match->repo->objects, ref->oid, NULL) != OBJ_TAG)
 		return 0;
-	obj = parse_object(the_repository, ref->oid);
+	obj = parse_object(match->repo, ref->oid);
 	if (!obj)
 		return 0;
-	obj = deref_tag(the_repository, obj, NULL, 0);
+	obj = deref_tag(match->repo, obj, NULL, 0);
 	if (obj && oideq(&obj->oid, match->oid)) {
 		match->found = 1;
 		return 1;
@@ -289,8 +297,9 @@ static int match_ref_target(const struct reference *ref, void *cb_data)
 	return 0;
 }
 
-/* Determine whether 'oid' is published by this repository, meaning that a
- * reference points directly at it or that it is reachable from one.
+/* Determine whether 'oid' is published by 'r', meaning that a reference points
+ * directly at it or that it is reachable from one. 'repo' supplies the cgit
+ * configuration governing which references 'r' publishes, and may be NULL.
  *
  * For an object that is not commit-ish, only the first test is available.
  * Asking whether a blob or a tree occurs somewhere in the history would mean
@@ -309,30 +318,30 @@ static int match_ref_target(const struct reference *ref, void *cb_data)
  * repository has a commit-graph; without one, the generation numbers that
  * bound the walk are unavailable and the cost grows with the size of history.
  */
-int cgit_oid_is_reachable(const struct object_id *oid)
+int cgit_oid_is_reachable(struct repository *r, const struct cgit_repo *repo,
+			  const struct object_id *oid)
 {
-	struct reachability_tips tips = { NULL, 0, 0 };
-	struct ref_target_match match = { oid, 0 };
+	struct reachability_tips tips = { r, NULL, 0, 0 };
+	struct ref_target_match match = { r, oid, 0 };
 	struct commit *commit;
 	int reachable = 1;
 
-	commit = lookup_commit_reference_gently(the_repository, oid, 1);
+	commit = lookup_commit_reference_gently(r, oid, 1);
 	if (!commit) {
 		/* An object that is not in the database at all is a different
 		 * question, and one the page handler answers in its own words.
 		 */
-		if (!odb_has_object(the_repository->objects, oid, 0))
+		if (!odb_has_object(r->objects, oid, 0))
 			return 1;
-		for_each_published_ref(match_ref_target, &match);
+		for_each_published_ref(r, repo, match_ref_target, &match);
 		return match.found;
 	}
 
-	for_each_published_ref(collect_reachability_tip, &tips);
+	for_each_published_ref(r, repo, collect_reachability_tip, &tips);
 
 	if (tips.nr)
-		reachable = repo_in_merge_bases_many(the_repository, commit,
-						     tips.nr, tips.commits,
-						     1) != 0;
+		reachable = repo_in_merge_bases_many(r, commit, tips.nr,
+						     tips.commits, 1) != 0;
 	free(tips.commits);
 	return reachable;
 }

@@ -356,7 +356,9 @@ extern void cgit_add_ref(struct reflist *list, struct refinfo *ref);
 extern void cgit_free_reflist_inner(struct reflist *list);
 extern int cgit_refs_cb(const struct reference *ref, void *cb_data);
 
-extern int cgit_oid_is_reachable(const struct object_id *oid);
+extern int cgit_oid_is_reachable(struct repository *r,
+				 const struct cgit_repo *repo,
+				 const struct object_id *oid);
 
 extern void cgit_free_commitinfo(struct commitinfo *info);
 extern void cgit_free_taginfo(struct taginfo *info);
