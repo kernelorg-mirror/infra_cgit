@@ -169,6 +169,13 @@ cgit_url()
 	CGIT_CONFIG="$PWD/cgitrc" QUERY_STRING="url=$1" cgit
 }
 
+# Drive cgit through PATH_INFO instead of url=, the way a webserver does
+# without rewrite rules. $1 is the virtual path, $2 the optional query string.
+cgit_path_info()
+{
+	CGIT_CONFIG="$PWD/cgitrc" PATH_INFO="$1" QUERY_STRING="$2" cgit
+}
+
 strip_headers() {
 	while read -r line
 	do
