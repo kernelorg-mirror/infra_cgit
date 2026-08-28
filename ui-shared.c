@@ -917,7 +917,7 @@ int cgit_reject_unreachable_object(const char *rev)
 		return 0;
 	if (!rev || repo_get_oid(the_repository, rev, &oid))
 		return 0;
-	if (cgit_oid_is_reachable(&oid))
+	if (cgit_oid_is_reachable(the_repository, ctx.repo, &oid))
 		return 0;
 
 	cgit_print_error_page(404, "Not found",
