@@ -73,6 +73,7 @@ extern void cgit_print_http_headers(void);
 extern void cgit_redirect(const char *url, bool permanent);
 extern void cgit_redirect_query(const char *path, const char *query,
 			       bool permanent);
+extern int cgit_reconcile_head_and_oid(void);
 extern void cgit_print_docstart(void);
 extern void cgit_print_docend(void);
 extern int cgit_reject_unreachable_object(const char *rev);

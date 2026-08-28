@@ -808,6 +808,145 @@ void cgit_redirect_query(const char *path, const char *query, bool permanent)
 	redirect(path, query, permanent);
 }
 
+/* Copy the query string, dropping any parameter whose name matches an
+ * entry in the NULL-terminated drop list.
+ */
+static void copy_query_without(struct strbuf *sb, const char * const *drop)
+{
+	const char *q = ctx.env.query_string;
+
+	while (q && *q) {
+		const char *end = strchrnul(q, '&');
+		size_t len = end - q;
+		const char *namep = q;
+		char *decoded = url_decode_parameter_name(&namep);
+		const char * const *name;
+
+		for (name = drop; *name; name++)
+			if (!strcmp(decoded, *name))
+				break;
+		free(decoded);
+		if (!*name) {
+			if (sb->len)
+				strbuf_addch(sb, '&');
+			strbuf_add(sb, q, len);
+		}
+		q = *end ? end + 1 : end;
+	}
+}
+
+/* Drop h= from the current request and send the visitor to what remains. */
+static void redirect_dropping_head(void)
+{
+	struct strbuf query = STRBUF_INIT;
+	static const char * const drop[] = { "h", "url", NULL };
+	char *path;
+
+	copy_query_without(&query, drop);
+	path = cgit_currenturl();
+	cgit_redirect_query(path, query.buf, true);
+	free(path);
+	strbuf_release(&query);
+}
+
+/* Whether 'oid' is an ancestor of the reference 'refname', as a tri-state: 1
+ * yes, 0 no, -1 the question could not be answered. That last case covers a
+ * reference that does not resolve, an object that is not commit-ish, and an
+ * error out of the traversal, and every caller below treats it as a reason to
+ * leave the request alone rather than act on a guess.
+ *
+ * This walks history, and is only affordable where the repository has a
+ * commit-graph to bound the walk. repo_in_merge_bases() walks depth-first and
+ * stops once it reaches the commit; the _many variant would paint everything
+ * newer than the commit, which on a deep history costs ten times as much.
+ */
+static int oid_is_on_branch(const struct object_id *oid, const char *refname)
+{
+	struct object_id tip_oid;
+	struct commit *commit, *tip;
+	int ret;
+
+	if (repo_get_oid(the_repository, refname, &tip_oid))
+		return -1;
+	commit = lookup_commit_reference_gently(the_repository, oid, 1);
+	tip = lookup_commit_reference_gently(the_repository, &tip_oid, 1);
+	if (!commit || !tip)
+		return -1;
+	ret = repo_in_merge_bases(the_repository, commit, tip);
+	return ret < 0 ? -1 : !!ret;
+}
+
+/* Reconcile h= with id= on a request that carries both.
+ *
+ * h= is cgit's branch selector, not a second way of saying what to display: it
+ * decides where the navigation links and the branch switcher point, and it
+ * survives from page to page. So a request that pins its content with id= and
+ * still names a branch is not saying the same thing twice -- it is saying
+ * "this commit, reached from that branch" -- and dropping h= would quietly
+ * return the visitor to the default branch.
+ *
+ * What is worth collapsing is a branch that adds nothing. A commit reached by
+ * walking one branch's log is usually on the default branch too, and then
+ * every branch containing it spells the same page a different way. So:
+ *
+ *   - a commit on the default branch is served from a single URL, h= dropped;
+ *   - a commit only on the named branch keeps h=, since the branch is the one
+ *     thing recording where the visitor is;
+ *   - a commit on neither is refused, as an object outside the repository is.
+ *
+ * That leaves one URL for the overwhelming majority of history and at most one
+ * more for the rest, in place of one per branch a commit happens to be on.
+ *
+ * A two-revision diff is exempt from the refusal: comparing commits across
+ * branches is a legitimate thing to ask for. Both revisions still go through
+ * the reachability check that follows.
+ *
+ * Returns 1 when a response has been sent.
+ */
+int cgit_reconcile_head_and_oid(void)
+{
+	struct object_id oid;
+	int on_default, on_head;
+
+	if (!ctx.repo || !ctx.qry.head || ctx.qry.nohead)
+		return 0;
+
+	/* h= naming the default branch adds nothing to any request, pinned or
+	 * not: it is the branch cgit would have selected for itself.
+	 */
+	if (ctx.repo->defbranch && !strcmp(ctx.qry.head, ctx.repo->defbranch)) {
+		redirect_dropping_head();
+		return 1;
+	}
+
+	/* Any other h= carries information on its own, and only a request that
+	 * also pins its content can be collapsed further -- at the price of a
+	 * walk, so only where the operator has asked for one.
+	 */
+	if (!ctx.qry.oid || !ctx.repo->enable_object_reachability_check)
+		return 0;
+	if (repo_get_oid(the_repository, ctx.qry.oid, &oid))
+		return 0;
+
+	on_default = ctx.repo->defbranch ?
+		oid_is_on_branch(&oid, ctx.repo->defbranch) : -1;
+	if (on_default > 0) {
+		redirect_dropping_head();
+		return 1;
+	}
+
+	on_head = oid_is_on_branch(&oid, ctx.qry.head);
+	if (on_head > 0)
+		return 0;
+	if (on_head < 0 || on_default < 0 || ctx.qry.oid2)
+		return 0;
+
+	cgit_print_error_page(404, "Not found",
+			      "Object %s is not on branch %s",
+			      ctx.qry.oid, ctx.qry.head);
+	return 1;
+}
+
 static void print_rel_vcs_link(const char *url)
 {
 	html("<link rel='vcs-git' href='");
