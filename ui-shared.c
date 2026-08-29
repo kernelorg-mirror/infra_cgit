@@ -881,6 +881,44 @@ static void copy_query_replacing_head(struct strbuf *sb, const char *newhead)
 	}
 }
 
+/* Copy the query string, substituting a new value for id= and/or id2=.
+ * Either substitution may be NULL, meaning that parameter is copied through
+ * unchanged. url= is dropped entirely, since the caller reconstructs the
+ * path from ctx.qry.url.
+ */
+static void copy_query_replacing_ids(struct strbuf *sb, const char *newid, const char *newid2)
+{
+	const char *q = ctx.env.query_string;
+
+	while (q && *q) {
+		const char *end = strchrnul(q, '&');
+		size_t len = end - q;
+		const char *namep = q;
+		char *decoded = url_decode_parameter_name(&namep);
+		int is_url = !strcmp(decoded, "url");
+		int is_id = !strcmp(decoded, "id");
+		int is_id2 = !strcmp(decoded, "id2");
+
+		free(decoded);
+		if (is_url) {
+			q = *end ? end + 1 : end;
+			continue;
+		}
+		if (sb->len)
+			strbuf_addch(sb, '&');
+		if (newid && is_id) {
+			strbuf_addstr(sb, "id=");
+			strbuf_add_percentencode(sb, newid, 0);
+		} else if (newid2 && is_id2) {
+			strbuf_addstr(sb, "id2=");
+			strbuf_add_percentencode(sb, newid2, 0);
+		} else {
+			strbuf_add(sb, q, len);
+		}
+		q = *end ? end + 1 : end;
+	}
+}
+
 /* Whether ctx.qry.head is redundant on this request: either id= already
  * pins the content and h= adds nothing, or h= merely repeats the
  * repository's default branch with no id= given.
@@ -1006,6 +1044,60 @@ int cgit_redirect_pathless_commit(void)
 
 	copy_query_without(&query, drop);
 	path = pathless_commit_url();
+	cgit_redirect_query(path, query.buf, true);
+	free(path);
+	strbuf_release(&query);
+	return 1;
+}
+
+/* Whether a string is entirely hex digits and shorter than a full object id
+ * -- i.e. plausibly an abbreviated sha, as opposed to a ref name or a
+ * revision expression like "HEAD~2" that repo_get_oid() would also accept.
+ * Redirecting those would be wrong: "id=HEAD" is meant to keep tracking the
+ * tip, and pinning it to today's resolution would break that.
+ */
+static int looks_like_abbreviated_oid(const char *s)
+{
+	size_t len = strlen(s);
+
+	if (!len || len >= the_hash_algo->hexsz)
+		return 0;
+	while (*s)
+		if (!isxdigit((unsigned char)*s++))
+			return 0;
+	return 1;
+}
+
+/* Redirect an abbreviated id= and/or id2= to the full-length object id it
+ * resolves to. repo_get_oid() already rejects an ambiguous abbreviation, so
+ * reaching the redirect means the abbreviation named exactly one object.
+ */
+int cgit_redirect_full_oid(void)
+{
+	struct object_id oid, oid2;
+	char fullhex[GIT_MAX_HEXSZ + 1], fullhex2[GIT_MAX_HEXSZ + 1];
+	const char *full = NULL, *full2 = NULL;
+	struct strbuf query = STRBUF_INIT;
+	char *path;
+
+	if (!ctx.repo)
+		return 0;
+
+	if (ctx.qry.oid && looks_like_abbreviated_oid(ctx.qry.oid) &&
+	    !repo_get_oid(the_repository, ctx.qry.oid, &oid)) {
+		oid_to_hex_r(fullhex, &oid);
+		full = fullhex;
+	}
+	if (ctx.qry.oid2 && looks_like_abbreviated_oid(ctx.qry.oid2) &&
+	    !repo_get_oid(the_repository, ctx.qry.oid2, &oid2)) {
+		oid_to_hex_r(fullhex2, &oid2);
+		full2 = fullhex2;
+	}
+	if (!full && !full2)
+		return 0;
+
+	copy_query_replacing_ids(&query, full, full2);
+	path = cgit_currenturl();
 	cgit_redirect_query(path, query.buf, true);
 	free(path);
 	strbuf_release(&query);
