@@ -74,6 +74,7 @@ extern void cgit_redirect_query(const char *path, const char *query,
 extern int cgit_redirect_redundant_head(void);
 extern int cgit_redirect_canonical_head(void);
 extern int cgit_redirect_pathless_commit(void);
+extern int cgit_redirect_full_oid(void);
 extern void cgit_print_docstart(void);
 extern void cgit_print_docend(void);
 extern int cgit_reject_unreachable_object(const char *rev);
