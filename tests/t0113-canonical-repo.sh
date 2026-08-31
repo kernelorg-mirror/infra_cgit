@@ -101,16 +101,19 @@ test_expect_success 'an object the canonical repo does not have is served' '
 # commit, like the other pages that carry cgit'"'"'s navigation chrome (log, tree,
 # refs, ...), is never redirected: its breadcrumbs and repo tabs would go on
 # referring to the repository the visitor lands in, with nothing on the page
-# to say the fork they asked for was substituted underneath them.
-test_expect_success 'a chrome-bearing view is never redirected' '
+# to say the fork they asked for was substituted underneath them. Instead its
+# own content is abbreviated -- see t0116 for that in detail.
+test_expect_success 'a chrome-bearing view is never redirected, but is abbreviated' '
 	cgit_url "fork/commit/&id=$shared" >output &&
-	grep -q "commit 50" output &&
-	! grep -q "^Status: 301" output
+	! grep -q "^Status: 301" output &&
+	grep -q "merged to" output &&
+	! grep -q "files changed" output
 '
 
-test_expect_success 'diff, unlike rawdiff, is a chrome-bearing view and is never redirected' '
+test_expect_success 'diff, unlike rawdiff, is a chrome-bearing view and is never redirected, but is abbreviated' '
 	cgit_url "fork/diff/&id=$shared" >output &&
-	! grep -q "^Status: 301" output
+	! grep -q "^Status: 301" output &&
+	grep -q "merged to" output
 '
 
 test_expect_success 'a request naming only a reference is not redirected' '

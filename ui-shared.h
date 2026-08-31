@@ -79,6 +79,12 @@ extern void cgit_print_docstart(void);
 extern void cgit_print_docend(void);
 extern int cgit_reject_unreachable_object(const char *rev);
 extern int cgit_redirect_to_canonical_repo(void);
+extern struct cgit_repo *cgit_find_canonical_repo(const struct object_id *oid,
+						  const struct object_id *oid2);
+extern void cgit_print_merged_notice(struct cgit_repo *repo,
+				     const struct object_id *oid,
+				     const struct object_id *oid2,
+				     const char *what);
 __attribute__((format (printf,3,4)))
 extern void cgit_print_error_page(int code, const char *msg, const char *fmt, ...);
 extern void cgit_vprint_error_page(int code, const char *msg, const char *fmt, va_list ap);

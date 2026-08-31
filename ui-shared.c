@@ -1361,17 +1361,59 @@ static int is_terminal_page(const char *page)
 	return 0;
 }
 
+/* Which canonical repository, if any, publishes 'oid' (and 'oid2', when
+ * given). Shared by the redirect on terminal pages and the abbreviated
+ * "merged elsewhere" notice on commit/diff pages -- both are answering the
+ * same question, just acting on it differently.
+ *
+ * A repository named as canonical never matches, including against another
+ * repository on the list. It is where visitors are being pointed at, and a
+ * site with several of them -- a mainline and the stable trees maintained
+ * alongside it, say -- means each of them is the right answer for its own
+ * URLs, not that they should chase each other.
+ */
+struct cgit_repo *cgit_find_canonical_repo(const struct object_id *oid,
+					   const struct object_id *oid2)
+{
+	struct string_list_item *item;
+
+	if (!ctx.repo || !ctx.cfg.canonical_repos.nr)
+		return NULL;
+
+	for_each_string_list_item(item, &ctx.cfg.canonical_repos)
+		if (!strcmp(item->string, ctx.repo->url))
+			return NULL;
+
+	for_each_string_list_item(item, &ctx.cfg.canonical_repos) {
+		struct cgit_repo *repo = cgit_get_repoinfo(item->string);
+		struct repository canon;
+		int publishes;
+
+		if (!repo || repo_init(&canon, repo->path, NULL))
+			continue;
+		publishes = repo_publishes_oid(repo, &canon, oid) &&
+			    (!oid2 || repo_publishes_oid(repo, &canon, oid2));
+		/* Deliberately not repo_clear(&canon): closing canon's
+		 * commit-graph wipes commit_graph_data_slab, which is shared
+		 * by every repository open in this process, corrupting a
+		 * graph position another repository (e.g. the_repository's)
+		 * already has cached. Disabling canon's commit-graph instead
+		 * would dodge that, but cgit_oid_is_reachable() depends on its
+		 * generation numbers to stay affordable on deep history.
+		 * cmd_main() serves one request per process and exits, so
+		 * leaking canon here is the cheaper trade.
+		 */
+		if (publishes)
+			return repo;
+	}
+	return NULL;
+}
+
 /* Redirect a request pinned to an object that a canonical repository
  * publishes. Where forks share an object database every one of them can
  * render every object, so a single commit has as many valid URLs as there
  * are forks; naming the repositories that history is merged into lets the
  * rest of them hand such a request over instead of answering it.
- *
- * A repository named as canonical never redirects, including to another
- * repository on the list. It is where the visitor is being sent, and a site
- * with several of them -- a mainline and the stable trees maintained
- * alongside it, say -- means each of them is the right answer for its own
- * URLs, not that they should chase each other.
  *
  * Only a request pinned by id= can be redirected. Anything else names a
  * reference, and a reference belongs to the repository that publishes it
@@ -1386,9 +1428,11 @@ static int is_terminal_page(const char *page)
  */
 int cgit_redirect_to_canonical_repo(void)
 {
-	struct string_list_item *item;
 	struct object_id oid, oid2;
 	int have_oid2 = 0;
+	struct cgit_repo *repo;
+	struct strbuf query = STRBUF_INIT;
+	char *url;
 
 	if (!ctx.repo || !ctx.qry.oid || !ctx.cfg.canonical_repos.nr)
 		return 0;
@@ -1401,43 +1445,51 @@ int cgit_redirect_to_canonical_repo(void)
 			return 0;
 		have_oid2 = 1;
 	}
-	for_each_string_list_item(item, &ctx.cfg.canonical_repos)
-		if (!strcmp(item->string, ctx.repo->url))
-			return 0;
 
-	for_each_string_list_item(item, &ctx.cfg.canonical_repos) {
-		struct cgit_repo *repo = cgit_get_repoinfo(item->string);
-		struct strbuf query = STRBUF_INIT;
-		struct repository canon;
-		char *url;
-		int publishes;
+	repo = cgit_find_canonical_repo(&oid, have_oid2 ? &oid2 : NULL);
+	if (!repo)
+		return 0;
 
-		if (!repo || repo_init(&canon, repo->path, NULL))
-			continue;
-		publishes = repo_publishes_oid(repo, &canon, &oid) &&
-			    (!have_oid2 ||
-			     repo_publishes_oid(repo, &canon, &oid2));
-		/* Deliberately not repo_clear(&canon): closing canon's
-		 * commit-graph wipes commit_graph_data_slab, which is shared
-		 * by every repository open in this process, corrupting a
-		 * graph position another repository (e.g. the_repository's)
-		 * already has cached. Disabling canon's commit-graph instead
-		 * would dodge that, but cgit_oid_is_reachable() depends on its
-		 * generation numbers to stay affordable on deep history.
-		 * cmd_main() serves one request per process and exits, so
-		 * leaking canon here is the cheaper trade.
-		 */
-		if (!publishes)
-			continue;
+	url = canonical_repo_url(repo, &oid, have_oid2 ? &oid2 : NULL, &query);
+	cgit_redirect_query(url, query.buf, true);
+	strbuf_release(&query);
+	free(url);
+	return 1;
+}
 
-		url = canonical_repo_url(repo, &oid, have_oid2 ? &oid2 : NULL,
-					 &query);
-		cgit_redirect_query(url, query.buf, true);
-		strbuf_release(&query);
-		free(url);
-		return 1;
+/* Print the notice that stands in for a commit's or diff's own content once
+ * a canonical repository already publishes it. Unlike the terminal-page
+ * redirect, this doesn't send the visitor away -- these two pages carry
+ * chrome of their own, breadcrumbs and repo tabs among it -- so instead it
+ * prints a link to the same object in the repository that publishes it, and
+ * the caller skips rendering the diff. That's both the expensive part of
+ * these two pages and the part every fork sharing an object database with
+ * the canonical repository would render identically, so skipping it is what
+ * actually shrinks the crawlable surface.
+ */
+void cgit_print_merged_notice(struct cgit_repo *repo,
+			      const struct object_id *oid,
+			      const struct object_id *oid2,
+			      const char *what)
+{
+	struct strbuf query = STRBUF_INIT;
+	char *url = canonical_repo_url(repo, oid, oid2, &query);
+
+	html("<div class='merged-notice'>");
+	htmlf("This %s has been merged to ", what);
+	html_txt(repo->url);
+	html(".<br/>\n");
+	html("<a href='");
+	html_url_path(url);
+	if (query.len) {
+		html("?");
+		html_attr(query.buf);
 	}
-	return 0;
+	html("'>View in the target repository</a>.");
+	html("</div>\n");
+
+	strbuf_release(&query);
+	free(url);
 }
 
 void cgit_print_error_page(int code, const char *msg, const char *fmt, ...)
