@@ -19,6 +19,73 @@ struct walk_tree_context {
 	int state;
 };
 
+/* Map a blob's name to a prism.js language class, using the file extension
+ * (or the bare basename for Makefiles). Returns NULL for anything outside
+ * the set of languages bundled in prism.js, in which case the blob is still
+ * shown, just without highlighting.
+ */
+static const char *guess_language_class(const char *name)
+{
+	const char *slash = strrchr(name, '/');
+	const char *base = slash ? slash + 1 : name;
+	const char *ext = strrchr(base, '.');
+
+	if (!strncmp(base, "Makefile", 8) && (base[8] == '\0' || base[8] == '.'))
+		return "makefile";
+	if (!ext || ext == base)
+		return NULL;
+	ext++;
+
+	if (!strcasecmp(ext, "c") || !strcasecmp(ext, "h"))
+		return "c";
+	if (!strcasecmp(ext, "cc") || !strcasecmp(ext, "cpp") ||
+	    !strcasecmp(ext, "cxx") || !strcasecmp(ext, "hpp") ||
+	    !strcasecmp(ext, "hh") || !strcasecmp(ext, "hxx"))
+		return "cpp";
+	if (!strcasecmp(ext, "py"))
+		return "python";
+	if (!strcasecmp(ext, "sh") || !strcasecmp(ext, "bash"))
+		return "bash";
+	if (!strcasecmp(ext, "js") || !strcasecmp(ext, "mjs") || !strcasecmp(ext, "cjs"))
+		return "javascript";
+	if (!strcasecmp(ext, "ts"))
+		return "typescript";
+	if (!strcasecmp(ext, "go"))
+		return "go";
+	if (!strcasecmp(ext, "java"))
+		return "java";
+	if (!strcasecmp(ext, "rb"))
+		return "ruby";
+	if (!strcasecmp(ext, "php"))
+		return "php";
+	if (!strcasecmp(ext, "json"))
+		return "json";
+	if (!strcasecmp(ext, "json5"))
+		return "json5";
+	if (!strcasecmp(ext, "yml") || !strcasecmp(ext, "yaml"))
+		return "yaml";
+	if (!strcasecmp(ext, "md") || !strcasecmp(ext, "markdown"))
+		return "markdown";
+	if (!strcasecmp(ext, "mk"))
+		return "makefile";
+	if (!strcasecmp(ext, "pl") || !strcasecmp(ext, "pm"))
+		return "perl";
+	if (!strcasecmp(ext, "rs"))
+		return "rust";
+	if (!strcasecmp(ext, "sql"))
+		return "sql";
+	if (!strcasecmp(ext, "diff") || !strcasecmp(ext, "patch"))
+		return "diff";
+	if (!strcasecmp(ext, "lua"))
+		return "lua";
+	if (!strcasecmp(ext, "html") || !strcasecmp(ext, "htm") || !strcasecmp(ext, "xml"))
+		return "markup";
+	if (!strcasecmp(ext, "css"))
+		return "css";
+
+	return NULL;
+}
+
 static void print_text_buffer(const char *name, char *buf, unsigned long size)
 {
 	unsigned long lineno, idx;
@@ -52,6 +119,15 @@ static void print_text_buffer(const char *name, char *buf, unsigned long size)
 		html_raw(buf, size);
 		cgit_close_filter(ctx.repo->source_filter);
 		free(filter_arg);
+		html("</code></pre></td></tr></table>\n");
+		return;
+	}
+
+	if (ctx.cfg.enable_source_highlight) {
+		const char *lang = guess_language_class(name);
+		htmlf("<td class='lines'><pre><code class='language-%s'>",
+		      lang ? lang : "none");
+		html_txt(buf);
 		html("</code></pre></td></tr></table>\n");
 		return;
 	}

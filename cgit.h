@@ -242,6 +242,7 @@ struct cgit_config {
 	int enable_subject_links;
 	int enable_html_serving;
 	int enable_tree_linenumbers;
+	int enable_source_highlight;
 	int enable_git_config;
 	int local_time;
 	int max_atom_items;

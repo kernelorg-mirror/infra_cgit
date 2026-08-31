@@ -207,6 +207,17 @@ enable-remote-branches::
 	in the summary and refs views. Default value: "0". See also:
 	"repo.enable-remote-branches".
 
+enable-source-highlight::
+	Flag which, when set to "1", will make cgit highlight blobs shown in
+	the tree view using prism.js (https://prismjs.com), a small
+	self-hosted JavaScript library that cgit ships and installs alongside
+	cgit.css and cgit.js: no external resources are fetched to render the
+	page. The language is guessed from the blob's filename; blobs whose
+	extension isn't recognized are still shown, just without
+	highlighting. This has no effect on a repository that sets
+	"repo.source-filter", which takes priority and keeps highlighting on
+	the server as before. Default value: "0".
+
 enable-subject-links::
 	Flag which, when set to "1", will make cgit use the subject of the
 	parent commit as link text when generating links to parent commits

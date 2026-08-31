@@ -318,6 +318,37 @@ div#cgit table.blob pre {
 	padding: 0; margin: 0;
 }
 
+/* prism.js ships its own boxed light theme (a background fill, a
+ * text-shadow emboss trick, and hardcoded token colors) that ignores
+ * whatever the surrounding page looks like. Drop the box so a highlighted
+ * blob sits flush in the blob view like an unhighlighted one always has,
+ * and let the base text take whatever color td.lines already set instead
+ * of Prism's own black -- only the .token.* rules need their own color to
+ * still be worth calling "highlighting". Prism also sets its own
+ * line-height, which the td.linenumbers column doesn't share, so line
+ * numbers drift out of sync with the code the further down the page you
+ * go -- inherit the table's line-height instead so both columns match.
+ */
+div#cgit table.blob pre[class*="language-"],
+div#cgit table.blob code[class*="language-"] {
+	background: none;
+	text-shadow: none;
+	color: inherit;
+	line-height: inherit;
+}
+
+/* Prism also paints its own translucent-white highlight box behind
+ * strings, entities, operators and urls specifically (its way of making
+ * them pop against the light background above) -- drop that too, or it
+ * shows up as a literal white box behind every "=", "*", "<<", etc.
+ */
+div#cgit table.blob .token.string,
+div#cgit table.blob .token.entity,
+div#cgit table.blob .token.operator,
+div#cgit table.blob .token.url {
+	background: none;
+}
+
 div#cgit table.blob td.linenumbers a,
 div#cgit table.ssdiff td.lineno a {
 	color: gray;

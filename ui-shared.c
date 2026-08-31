@@ -832,6 +832,19 @@ void cgit_print_docstart(void)
 	else
 		emit_js_link(NULL, "/cgit.js");
 
+	/* The tree command may render a highlighted blob further down the
+	 * page; a repo.source-filter, when set, takes priority and renders
+	 * the blob itself instead, so prism has nothing to highlight there.
+	 * Emitted unconditionally for the whole command rather than only
+	 * for the blob paths within it, since telling the two apart this
+	 * early would mean walking the tree a second time.
+	 */
+	if (ctx.repo && ctx.cfg.enable_source_highlight && !ctx.repo->source_filter &&
+	    ctx.qry.page && !strcmp(ctx.qry.page, "tree")) {
+		emit_css_link(NULL, "/prism.css");
+		emit_js_link(NULL, "/prism.js");
+	}
+
 	if (ctx.cfg.favicon && *ctx.cfg.favicon) {
 		html("<link rel='shortcut icon' href='");
 		html_attr(ctx.cfg.favicon);
