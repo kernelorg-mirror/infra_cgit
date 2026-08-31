@@ -209,6 +209,8 @@ static void config_cb(const char *name, const char *value)
 		ctx.cfg.enable_html_serving = atoi(value);
 	else if (!strcmp(name, "enable-tree-linenumbers"))
 		ctx.cfg.enable_tree_linenumbers = atoi(value);
+	else if (!strcmp(name, "enable-source-highlight"))
+		ctx.cfg.enable_source_highlight = atoi(value);
 	else if (!strcmp(name, "enable-git-config"))
 		ctx.cfg.enable_git_config = atoi(value);
 	else if (!strcmp(name, "max-stats"))
@@ -405,6 +407,7 @@ static void prepare_context(void)
 	ctx.cfg.enable_http_clone = 1;
 	ctx.cfg.enable_index_owner = 1;
 	ctx.cfg.enable_tree_linenumbers = 1;
+	ctx.cfg.enable_source_highlight = 0;
 	ctx.cfg.enable_git_config = 0;
 	ctx.cfg.max_repo_count = 50;
 	ctx.cfg.max_commit_count = 50;
