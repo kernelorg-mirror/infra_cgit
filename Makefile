@@ -88,6 +88,8 @@ install: all
 	$(INSTALL) -m 0755 -d $(DESTDIR)$(CGIT_DATA_PATH)
 	$(INSTALL) -m 0644 cgit.css $(DESTDIR)$(CGIT_DATA_PATH)/cgit.css
 	$(INSTALL) -m 0644 cgit.js $(DESTDIR)$(CGIT_DATA_PATH)/cgit.js
+	$(INSTALL) -m 0644 prism.css $(DESTDIR)$(CGIT_DATA_PATH)/prism.css
+	$(INSTALL) -m 0644 prism.js $(DESTDIR)$(CGIT_DATA_PATH)/prism.js
 	$(INSTALL) -m 0644 cgit.png $(DESTDIR)$(CGIT_DATA_PATH)/cgit.png
 	$(INSTALL) -m 0644 favicon.ico $(DESTDIR)$(CGIT_DATA_PATH)/favicon.ico
 	$(INSTALL) -m 0644 robots.txt $(DESTDIR)$(CGIT_DATA_PATH)/robots.txt
@@ -117,6 +119,8 @@ uninstall:
 	rm -f $(DESTDIR)$(CGIT_SCRIPT_PATH)/$(CGIT_SCRIPT_NAME)
 	rm -f $(DESTDIR)$(CGIT_DATA_PATH)/cgit.css
 	rm -f $(DESTDIR)$(CGIT_DATA_PATH)/cgit.js
+	rm -f $(DESTDIR)$(CGIT_DATA_PATH)/prism.css
+	rm -f $(DESTDIR)$(CGIT_DATA_PATH)/prism.js
 	rm -f $(DESTDIR)$(CGIT_DATA_PATH)/cgit.png
 	rm -f $(DESTDIR)$(CGIT_DATA_PATH)/favicon.ico
 	rm -f $(DESTDIR)$(CGIT_DATA_PATH)/robots.txt
