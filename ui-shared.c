@@ -1206,7 +1206,17 @@ static int print_branch_option(const struct reference *ref, void *cb_data)
 	return 0;
 }
 
-void cgit_add_hidden_formfields(int incl_head, int incl_search,
+/* Emit the hidden fields that let a form resubmit the request it was
+ * rendered from. 'incl_head' and 'incl_rev' say whether the branch and the
+ * pinned revision are part of that: a form that re-renders the same page
+ * with different options -- the diff controls, the log search -- needs both,
+ * so that submitting it changes only what it set out to change.
+ *
+ * The branch switcher needs neither. It supplies its own h=, and a revision
+ * carried alongside would go on deciding what the page displays, so picking
+ * a different branch would appear to do nothing at all.
+ */
+void cgit_add_hidden_formfields(int incl_head, int incl_rev, int incl_search,
 				const char *page)
 {
 	if (!ctx.cfg.virtual_root) {
@@ -1223,10 +1233,12 @@ void cgit_add_hidden_formfields(int incl_head, int incl_search,
 	    strcmp(ctx.qry.head, ctx.repo->defbranch))
 		html_hidden("h", ctx.qry.head);
 
-	if (ctx.qry.oid)
-		html_hidden("id", ctx.qry.oid);
-	if (ctx.qry.oid2)
-		html_hidden("id2", ctx.qry.oid2);
+	if (incl_rev) {
+		if (ctx.qry.oid)
+			html_hidden("id", ctx.qry.oid);
+		if (ctx.qry.oid2)
+			html_hidden("id2", ctx.qry.oid2);
+	}
 	if (ctx.qry.showmsg)
 		html_hidden("showmsg", "1");
 
@@ -1303,7 +1315,7 @@ static void print_header(void)
 		if (ctx.env.authenticated) {
 			html("</td><td class='form'>");
 			html("<form method='get'>\n");
-			cgit_add_hidden_formfields(0, 1, ctx.qry.page);
+			cgit_add_hidden_formfields(0, 0, 1, ctx.qry.page);
 			html("<select name='h' onchange='this.form.submit();'>\n");
 			refs_for_each_branch_ref(get_main_ref_store(the_repository),
 						 print_branch_option, ctx.qry.head);
@@ -1382,7 +1394,7 @@ void cgit_print_pageheader(void)
 			free(fileurl);
 		}
 		html("'>\n");
-		cgit_add_hidden_formfields(1, 0, "log");
+		cgit_add_hidden_formfields(1, 1, 0, "log");
 		html("<select name='qt'>\n");
 		html_option("grep", "log msg", ctx.qry.grep);
 		html_option("author", "author", ctx.qry.grep);
