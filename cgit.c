@@ -145,6 +145,9 @@ static void config_cb(const char *name, const char *value)
 		cgit_repo_config(ctx.repo, arg, value);
 	else if (!strcmp(name, "readme"))
 		string_list_append(&ctx.cfg.readme, strdup_first_line(value));
+	else if (!strcmp(name, "canonical-repo"))
+		string_list_append(&ctx.cfg.canonical_repos,
+				   strdup_first_line(value));
 	else if (!strcmp(name, "root-title"))
 		ctx.cfg.root_title = strdup_first_line(value);
 	else if (!strcmp(name, "root-desc"))
@@ -781,6 +784,9 @@ static void process_request(void)
 	ctx.qry.vpath = cmd->want_vpath ? ctx.qry.path : NULL;
 
 	if (ctx.repo && prepare_repo_cmd(nongit))
+		return;
+
+	if (cgit_redirect_to_canonical_repo())
 		return;
 
 	if (cgit_reject_unreachable_object(ctx.qry.oid) ||

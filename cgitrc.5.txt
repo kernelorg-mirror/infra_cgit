@@ -125,6 +125,43 @@ clone-url::
 	used if `repo.clone-url` is unspecified. Default value: none. See
 	also: "MACRO EXPANSION", "FILTER API".
 
+canonical-repo::
+	Name of a repository that history is merged into, given as the value of
+	its `repo.url`. May be repeated; the repositories are consulted in the
+	order they are listed and the first one that publishes the object is
+	redirected to, so the tree that history ultimately lands in belongs at
+	the top of the list. Default value: none.
+
+	Where several repositories share an object database -- through
+	objects/info/alternates, or any other arrangement that deduplicates
+	identical objects across forks -- every object is readable from every
+	one of them, so a single commit has as many valid URLs as there are
+	forks. When a request pinned by `id=` names an object that a canonical
+	repository publishes, cgit answers with a permanent redirect to the
+	same page in that repository instead of rendering it, which leaves one
+	URL per object however many forks there are.
+
+	Only pages with no navigation of their own are redirected: `blob`,
+	`patch`, `plain`, `rawdiff` and `snapshot`. A page such as `commit` or
+	`diff` carries breadcrumbs and repo tabs that would go on referring to
+	the repository the redirect lands in, with nothing on the page to say
+	the fork actually asked for was substituted underneath the visitor, so
+	those pages are always rendered from the repository named in the URL.
+
+	A repository named here never redirects, including to another
+	repository named here: each of them is the right answer for its own
+	URLs. A request that does not carry `id=` names a reference, which
+	belongs to the repository publishing it, and is never redirected.
+
+	The redirect names the object by its full object name, so an
+	abbreviated `id=`, or a reference given where an object name was
+	expected, is answered with the canonical form.
+
+	Answering the question means asking whether the canonical repository
+	publishes the object, which walks history and is bounded by generation
+	numbers only where a commit-graph is present. See
+	`enable-object-reachability-check` for the same caveat at length.
+
 commit-filter::
 	Specifies a command which will be invoked to format commit messages.
 	The command will get the message on its STDIN, and the STDOUT from the

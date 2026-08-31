@@ -12,6 +12,7 @@
 #include "ui-shared.h"
 #include "cmd.h"
 #include "html.h"
+#include "url.h"
 #include "version.h"
 
 static const char cgit_doctype[] =
@@ -775,12 +776,50 @@ void cgit_print_http_headers(void)
 		exit(0);
 }
 
-void cgit_redirect(const char *url, bool permanent)
+/* Emit a query string into a response header. The query is already
+ * URL-encoded, so its reserved characters ('?', '&', '=', '%') and any
+ * high-bit bytes have to pass through untouched; only control bytes -- CR
+ * and LF above all -- are percent-encoded. A raw CR/LF reaching us in the
+ * query string would otherwise terminate the Location header early and let
+ * the request splice headers of its own onto the response.
+ */
+static void emit_header_query(const char *query)
+{
+	const char *p;
+
+	for (p = query; *p; p++) {
+		unsigned char c = *p;
+		if (c < 0x20 || c == 0x7f)
+			htmlf("%%%02X", c);
+		else
+			html_raw(p, 1);
+	}
+}
+
+static void redirect(const char *path, const char *query, bool permanent)
 {
 	htmlf("Status: %d %s\n", permanent ? 301 : 302, permanent ? "Moved" : "Found");
 	html("Location: ");
-	html_url_path(url);
+	html_url_path(path);
+	if (query && *query) {
+		html("?");
+		emit_header_query(query);
+	}
 	html("\n\n");
+}
+
+void cgit_redirect(const char *url, bool permanent)
+{
+	redirect(url, NULL, permanent);
+}
+
+/* Redirect to 'path' with 'query' appended. The path is escaped as a URL
+ * path, which would mangle a query string; the query is emitted as given,
+ * because its only source is the query string of the request being answered.
+ */
+void cgit_redirect_query(const char *path, const char *query, bool permanent)
+{
+	redirect(path, query, permanent);
 }
 
 static void print_rel_vcs_link(const char *url)
@@ -945,6 +984,199 @@ int cgit_reject_unreachable_object(const char *rev)
 			      "Object %s is not reachable from any reference "
 			      "in this repository", rev);
 	return 1;
+}
+
+/* Copy the query string of the request, dropping the parameters the canonical
+ * URL restates for itself.
+ *
+ * The repository is being replaced, so the parameters naming it go. So does
+ * h=: the branch it names belongs to the fork, not to the repository we are
+ * handing the visitor to, and a request pinned by id= resolves its content
+ * from id= alone. And so do id= and id2=, which are reissued as full object
+ * names, because cgit accepts a reference there and a reference resolved
+ * against the canonical repository would name a different commit.
+ *
+ * Parameter names are compared without decoding them. Encoding a name is
+ * legal but nothing produces it, and a name that arrives encoded is simply
+ * carried across unrecognised, which costs the visitor one redundant
+ * parameter and nothing else.
+ */
+static void copy_query_without_repo(struct strbuf *sb)
+{
+	static const char *drop[] = { "r", "h", "url", "id", "id2", NULL };
+	const char *q = ctx.env.query_string;
+
+	while (q && *q) {
+		const char *end = strchrnul(q, '&');
+		size_t len = end - q;
+		const char *namep = q;
+		char *decoded = url_decode_parameter_name(&namep);
+		const char **name;
+
+		for (name = drop; *name; name++)
+			if (!strcmp(decoded, *name))
+				break;
+		free(decoded);
+		if (!*name) {
+			if (sb->len)
+				strbuf_addch(sb, '&');
+			strbuf_add(sb, q, len);
+		}
+		q = *end ? end + 1 : end;
+	}
+}
+
+/* Build the same request against 'repo'. Only the repository changes: the
+ * page, the path and every remaining parameter are those the visitor sent,
+ * so the page they arrive at is the page they asked for.
+ */
+static char *canonical_repo_url(const struct cgit_repo *repo,
+				const struct object_id *oid,
+				const struct object_id *oid2,
+				struct strbuf *query)
+{
+	struct strbuf url = STRBUF_INIT;
+
+	copy_query_without_repo(query);
+	if (query->len)
+		strbuf_insertstr(query, 0, "&");
+	if (oid2)
+		strbuf_insertf(query, 0, "&id2=%s", oid_to_hex(oid2));
+	strbuf_insertf(query, 0, "id=%s", oid_to_hex(oid));
+
+	strbuf_addstr(&url, ctx.cfg.virtual_root ? ctx.cfg.virtual_root : "/");
+	if (ctx.qry.url) {
+		/* Whether it arrived as PATH_INFO or as url=, ctx.qry.url is
+		 * the repository followed by the page and path. Replacing the
+		 * one leaves the others untouched.
+		 */
+		strbuf_addstr(&url, repo->url);
+		strbuf_addstr(&url, ctx.qry.url + strlen(ctx.repo->url));
+	} else {
+		/* A request that named its repository with r= keeps its page
+		 * and path in the query string, so only r= has to come back.
+		 */
+		strbuf_insertf(query, 0, "r=%s&", repo->url);
+	}
+	return strbuf_detach(&url, NULL);
+}
+
+/* Whether 'repo' publishes 'oid', in the sense the redirect needs: it has to
+ * hold the object before the question of reachability arises.
+ *
+ * cgit_oid_is_reachable() reports an object it cannot find as published,
+ * because there refusing to serve a page is the more damaging way to be
+ * wrong. Here the damaging answer is the other one -- a redirect would send
+ * the visitor to a repository that has no copy of what they asked for -- so
+ * the absent object is ruled out before it is asked about.
+ */
+static int repo_publishes_oid(const struct cgit_repo *repo,
+			      struct repository *r,
+			      const struct object_id *oid)
+{
+	if (!odb_has_object(r->objects, oid, 0))
+		return 0;
+	return cgit_oid_is_reachable(r, repo, oid);
+}
+
+/* Pages with no navigation of their own: no page header, no repo tabs, no
+ * outbound links to other views of the same repository. Landing on one by
+ * redirect leaves nothing to click but the back button, so there is nothing
+ * for a visitor to be confused by. A page that carries the ordinary chrome
+ * -- commit, diff, log, tree and the rest -- would otherwise send someone
+ * on to browse a repository they never chose, with no indication that the
+ * ground shifted under them.
+ */
+static int is_terminal_page(const char *page)
+{
+	static const char * const pages[] = {
+		"blob", "patch", "plain", "rawdiff", "snapshot", NULL
+	};
+	const char * const *p;
+
+	for (p = pages; *p; p++)
+		if (!strcmp(page, *p))
+			return 1;
+	return 0;
+}
+
+/* Redirect a request pinned to an object that a canonical repository
+ * publishes. Where forks share an object database every one of them can
+ * render every object, so a single commit has as many valid URLs as there
+ * are forks; naming the repositories that history is merged into lets the
+ * rest of them hand such a request over instead of answering it.
+ *
+ * A repository named as canonical never redirects, including to another
+ * repository on the list. It is where the visitor is being sent, and a site
+ * with several of them -- a mainline and the stable trees maintained
+ * alongside it, say -- means each of them is the right answer for its own
+ * URLs, not that they should chase each other.
+ *
+ * Only a request pinned by id= can be redirected. Anything else names a
+ * reference, and a reference belongs to the repository that publishes it
+ * however much history the two repositories share. A diff names two objects
+ * and is redirected only when the canonical repository publishes both.
+ *
+ * Restricted to is_terminal_page(): a redirect substitutes a different
+ * repository for the one in the URL, and a page with its own navigation
+ * would carry that substitution forward invisibly -- someone landing on
+ * their own fork's commit page ends up browsing another repository's log
+ * and tree without ever being told so.
+ */
+int cgit_redirect_to_canonical_repo(void)
+{
+	struct string_list_item *item;
+	struct object_id oid, oid2;
+	int have_oid2 = 0;
+
+	if (!ctx.repo || !ctx.qry.oid || !ctx.cfg.canonical_repos.nr)
+		return 0;
+	if (!ctx.qry.page || !is_terminal_page(ctx.qry.page))
+		return 0;
+	if (repo_get_oid(the_repository, ctx.qry.oid, &oid))
+		return 0;
+	if (ctx.qry.oid2) {
+		if (repo_get_oid(the_repository, ctx.qry.oid2, &oid2))
+			return 0;
+		have_oid2 = 1;
+	}
+	for_each_string_list_item(item, &ctx.cfg.canonical_repos)
+		if (!strcmp(item->string, ctx.repo->url))
+			return 0;
+
+	for_each_string_list_item(item, &ctx.cfg.canonical_repos) {
+		struct cgit_repo *repo = cgit_get_repoinfo(item->string);
+		struct strbuf query = STRBUF_INIT;
+		struct repository canon;
+		char *url;
+		int publishes;
+
+		if (!repo || repo_init(&canon, repo->path, NULL))
+			continue;
+		publishes = repo_publishes_oid(repo, &canon, &oid) &&
+			    (!have_oid2 ||
+			     repo_publishes_oid(repo, &canon, &oid2));
+		/* Deliberately not repo_clear(&canon): closing canon's
+		 * commit-graph wipes commit_graph_data_slab, which is shared
+		 * by every repository open in this process, corrupting a
+		 * graph position another repository (e.g. the_repository's)
+		 * already has cached. Disabling canon's commit-graph instead
+		 * would dodge that, but cgit_oid_is_reachable() depends on its
+		 * generation numbers to stay affordable on deep history.
+		 * cmd_main() serves one request per process and exits, so
+		 * leaking canon here is the cheaper trade.
+		 */
+		if (!publishes)
+			continue;
+
+		url = canonical_repo_url(repo, &oid, have_oid2 ? &oid2 : NULL,
+					 &query);
+		cgit_redirect_query(url, query.buf, true);
+		strbuf_release(&query);
+		free(url);
+		return 1;
+	}
+	return 0;
 }
 
 void cgit_print_error_page(int code, const char *msg, const char *fmt, ...)
