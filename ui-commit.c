@@ -22,6 +22,7 @@ void cgit_print_commit(char *hex, const char *prefix)
 	struct commit_list *p;
 	struct strbuf notes = STRBUF_INIT;
 	struct object_id oid;
+	struct cgit_repo *canonical_repo;
 	char *tmp, *tmp2;
 	int parents = 0;
 
@@ -40,7 +41,12 @@ void cgit_print_commit(char *hex, const char *prefix)
 		return;
 	}
 	info = cgit_parse_commit(commit);
+	canonical_repo = cgit_find_canonical_repo(&oid, NULL);
 
+	/* Notes are per-repository (refs/notes/commits doesn't travel with
+	 * the commit itself), so a fork can carry its own even once the
+	 * commit is merged elsewhere -- they're shown regardless.
+	 */
 	format_display_notes(&oid, &notes, PAGE_ENCODING, 1);
 
 	load_ref_decorations(NULL, DECORATE_FULL_REFS);
@@ -123,11 +129,15 @@ void cgit_print_commit(char *hex, const char *prefix)
 	cgit_close_filter(ctx.repo->commit_filter);
 	show_commit_decorations(commit);
 	html("</div>");
-	html("<div class='commit-msg'>");
-	cgit_open_filter(ctx.repo->commit_filter);
-	html_txt(info->msg);
-	cgit_close_filter(ctx.repo->commit_filter);
-	html("</div>");
+	if (canonical_repo)
+		cgit_print_merged_notice(canonical_repo, &oid, NULL, "commit");
+	else {
+		html("<div class='commit-msg'>");
+		cgit_open_filter(ctx.repo->commit_filter);
+		html_txt(info->msg);
+		cgit_close_filter(ctx.repo->commit_filter);
+		html("</div>");
+	}
 	if (notes.len != 0) {
 		html("<div class='notes-header'>Notes</div>");
 		html("<div class='notes'>");
@@ -137,12 +147,12 @@ void cgit_print_commit(char *hex, const char *prefix)
 		html("</div>");
 		html("<div class='notes-footer'></div>");
 	}
-	if (parents < 3) {
+	if (!canonical_repo && parents < 3) {
 		if (parents)
 			tmp = oid_to_hex(&commit->parents->item->object.oid);
 		else
 			tmp = NULL;
-		cgit_print_diff(ctx.qry.oid, tmp, prefix, 0, 0);
+		cgit_print_diff(ctx.qry.oid, tmp, prefix, 0, 0, 1);
 	}
 	strbuf_release(&notes);
 	cgit_free_commitinfo(info);

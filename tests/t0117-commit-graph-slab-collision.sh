@@ -46,13 +46,14 @@ test_expect_success 'setup for commit-graph slab collision regression' '
 test_expect_success 'commit page does not crash when the canonical repo has a commit-graph' '
 	rm -rf cache && mkdir cache &&
 	cgit_url "graphtip-fork/commit/&id=$graphtip_head" >output &&
+	grep -q "This commit has been merged to graphtip" output &&
 	grep -q "<th>tree</th>" output
 '
 
 test_expect_success 'diff page does not crash when the canonical repo has a commit-graph' '
 	rm -rf cache && mkdir cache &&
 	cgit_url "graphtip-fork/diff/&id=$graphtip_head" >output &&
-	grep -q "diff --git" output
+	grep -q "This diff has been merged to graphtip" output
 '
 
 test_done
