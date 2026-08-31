@@ -384,7 +384,8 @@ void cgit_print_diff_ctrls(void)
 }
 
 void cgit_print_diff(const char *new_rev, const char *old_rev,
-		     const char *prefix, int show_ctrls, int raw)
+		     const char *prefix, int show_ctrls, int raw,
+		     int new_rev_not_canonical)
 {
 	struct commit *commit, *commit2;
 	const struct object_id *old_tree_oid, *new_tree_oid;
@@ -469,6 +470,25 @@ void cgit_print_diff(const char *new_rev, const char *old_rev,
 	if (show_ctrls) {
 		cgit_print_layout_start();
 		cgit_print_diff_ctrls();
+	}
+
+	/* A caller that already resolved new_rev via cgit_find_canonical_repo()
+	 * and got no match knows this lookup can only repeat that same answer:
+	 * requiring old_rev to also be published can never turn a repository
+	 * that doesn't publish new_rev into one that does. Skip re-asking.
+	 */
+	if (!new_rev_not_canonical) {
+		struct cgit_repo *canonical_repo = cgit_find_canonical_repo(
+			new_rev_oid, is_null_oid(old_rev_oid) ? NULL : old_rev_oid);
+
+		if (canonical_repo) {
+			cgit_print_merged_notice(canonical_repo, new_rev_oid,
+						 is_null_oid(old_rev_oid) ? NULL : old_rev_oid,
+						 "diff");
+			if (show_ctrls)
+				cgit_print_layout_end();
+			return;
+		}
 	}
 
 	/*

@@ -162,6 +162,19 @@ canonical-repo::
 	numbers only where a commit-graph is present. See
 	`enable-object-reachability-check` for the same caveat at length.
 
+	`commit` and `diff`, the two chrome-bearing pages a canonical repository
+	never redirects, are not exempt from this deduplication: whenever one of
+	them names an object (an id= for `commit`; for `diff`, both id= and id2=,
+	or id= and its parent when id2= is unset) a canonical repository already
+	publishes, cgit prints an abbreviated page in its place -- the ordinary
+	metadata (author, committer, commit, tree, parent) and, for `commit`, the
+	subject line, followed by a note that the object has been merged to the
+	canonical repository and a link to view it there -- instead of rendering
+	the commit message, notes, diffstat and diff. That render is both the
+	expensive part of these two pages and the part identical across every
+	fork sharing an object database with the canonical repository, so this
+	is what actually shrinks the surface a crawler can spend time on.
+
 commit-filter::
 	Specifies a command which will be invoked to format commit messages.
 	The command will get the message on its STDIN, and the STDOUT from the
