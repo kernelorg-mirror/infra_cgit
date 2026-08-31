@@ -343,7 +343,7 @@ void cgit_print_diff_ctrls(void)
 	html("<div class='cgit-panel'>");
 	html("<b>diff options</b>");
 	html("<form method='get'>");
-	cgit_add_hidden_formfields(1, 0, ctx.qry.page);
+	cgit_add_hidden_formfields(1, 1, 0, ctx.qry.page);
 	html("<table>");
 	html("<tr><td colspan='2'/></tr>");
 	html("<tr>");

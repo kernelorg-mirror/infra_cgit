@@ -33,4 +33,15 @@ test_expect_success 'root commit contains diff' '
 	grep "<div class=.add.>+1</div>" tmp
 '
 
+test_expect_success 'the branch switcher does not pin the displayed revision' '
+	tip=$(cd repos/foo && git rev-parse HEAD) &&
+	cgit_url "foo/commit&id=$tip" >tmp &&
+	grep -q "<select name=.h." tmp &&
+	! grep -q "name=.id.[^>]*/><select name=.h." tmp
+'
+
+test_expect_success 'the forms that re-render the same page still pin it' '
+	grep -q "<input type=.hidden. name=.id. value=.$tip." tmp
+'
+
 test_done
