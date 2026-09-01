@@ -723,6 +723,7 @@ static void process_request(void)
 {
 	struct cgit_cmd *cmd;
 	int nongit = 0;
+	int oid_published = 0;
 
 	/* If we're not yet authenticated, no matter what page we're on,
 	 * display the authentication body from the auth_filter. This should
@@ -772,8 +773,15 @@ static void process_request(void)
 	if (cgit_redirect_to_canonical_repo())
 		return;
 
-	if (cgit_reconcile_head_and_oid())
+	switch (cgit_reconcile_head_and_oid()) {
+	case CGIT_RECONCILE_ANSWERED:
 		return;
+	case CGIT_RECONCILE_OID_PUBLISHED:
+		oid_published = 1;
+		break;
+	case CGIT_RECONCILE_CONTINUE:
+		break;
+	}
 
 	if (cgit_redirect_canonical_head())
 		return;
@@ -784,7 +792,7 @@ static void process_request(void)
 	if (cgit_redirect_full_oid())
 		return;
 
-	if (cgit_reject_unreachable_object(ctx.qry.oid) ||
+	if ((!oid_published && cgit_reject_unreachable_object(ctx.qry.oid)) ||
 	    cgit_reject_unreachable_object(ctx.qry.oid2))
 		return;
 

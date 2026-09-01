@@ -963,20 +963,20 @@ static int oid_is_on_branch(const struct object_id *oid, const char *refname)
  *
  * Returns 1 when a response has been sent.
  */
-int cgit_reconcile_head_and_oid(void)
+enum cgit_reconcile_result cgit_reconcile_head_and_oid(void)
 {
 	struct object_id oid;
 	int on_default, on_head;
 
 	if (!ctx.repo || !ctx.qry.head || ctx.qry.nohead)
-		return 0;
+		return CGIT_RECONCILE_CONTINUE;
 
 	/* h= naming the default branch adds nothing to any request, pinned or
 	 * not: it is the branch cgit would have selected for itself.
 	 */
 	if (ctx.repo->defbranch && !strcmp(ctx.qry.head, ctx.repo->defbranch)) {
 		redirect_dropping_head();
-		return 1;
+		return CGIT_RECONCILE_ANSWERED;
 	}
 
 	/* Any other h= carries information on its own, and only a request that
@@ -984,27 +984,37 @@ int cgit_reconcile_head_and_oid(void)
 	 * walk, so only where the operator has asked for one.
 	 */
 	if (!ctx.qry.oid || !ctx.repo->enable_object_reachability_check)
-		return 0;
+		return CGIT_RECONCILE_CONTINUE;
 	if (repo_get_oid(the_repository, ctx.qry.oid, &oid))
-		return 0;
+		return CGIT_RECONCILE_CONTINUE;
 
 	on_default = ctx.repo->defbranch ?
 		oid_is_on_branch(&oid, ctx.repo->defbranch) : -1;
 	if (on_default > 0) {
 		redirect_dropping_head();
-		return 1;
+		return CGIT_RECONCILE_ANSWERED;
 	}
 
 	on_head = oid_is_on_branch(&oid, ctx.qry.head);
-	if (on_head > 0)
-		return 0;
+	if (on_head > 0) {
+		/* The walk just placed the object on h=, so if h= is one of
+		 * the references this repository publishes, the object is
+		 * reachable from it and the broader check has nothing left to
+		 * find. Saying so here spares the caller a second walk, this
+		 * one over every published tip.
+		 */
+		if (cgit_ref_is_published(the_repository, ctx.repo,
+					  ctx.qry.head))
+			return CGIT_RECONCILE_OID_PUBLISHED;
+		return CGIT_RECONCILE_CONTINUE;
+	}
 	if (on_head < 0 || on_default < 0 || ctx.qry.oid2)
-		return 0;
+		return CGIT_RECONCILE_CONTINUE;
 
 	cgit_print_error_page(404, "Not found",
 			      "Object %s is not on branch %s",
 			      ctx.qry.oid, ctx.qry.head);
-	return 1;
+	return CGIT_RECONCILE_ANSWERED;
 }
 
 /* Collapse an explicit refs/heads/ prefix on h= down to the branch name
