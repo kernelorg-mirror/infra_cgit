@@ -73,7 +73,20 @@ extern void cgit_print_http_headers(void);
 extern void cgit_redirect(const char *url, bool permanent);
 extern void cgit_redirect_query(const char *path, const char *query,
 			       bool permanent);
-extern int cgit_reconcile_head_and_oid(void);
+/* What cgit_reconcile_head_and_oid() concluded about the request.
+ *
+ * CGIT_RECONCILE_OID_PUBLISHED reports that ctx.qry.oid was shown to be an
+ * ancestor of a reference the repository publishes, which answers the question
+ * cgit_reject_unreachable_object() would go on to ask about it. It says
+ * nothing about ctx.qry.oid2, which is never examined here.
+ */
+enum cgit_reconcile_result {
+	CGIT_RECONCILE_CONTINUE = 0,
+	CGIT_RECONCILE_ANSWERED,
+	CGIT_RECONCILE_OID_PUBLISHED,
+};
+
+extern enum cgit_reconcile_result cgit_reconcile_head_and_oid(void);
 extern int cgit_redirect_canonical_head(void);
 extern int cgit_redirect_pathless_commit(void);
 extern int cgit_redirect_full_oid(void);

@@ -102,6 +102,44 @@ test_expect_success 'a two-revision diff across branches is served anyway' '
 	grep -q "diff --git a/side.txt b/side.txt" output
 '
 
+# The reconciliation above can prove an object reachable as a side effect, which
+# lets cgit skip the broader reachability check. That shortcut must only fire
+# for references the repository actually publishes: an object sitting on a ref
+# cgit does not show is still not something it may serve.
+test_expect_success 'setup an object on a reference cgit does not publish' '
+	(
+		cd repos/foo &&
+		git checkout -q -b hidden master &&
+		echo hidden >hidden.txt &&
+		git add hidden.txt &&
+		git commit -q -m "only on a hidden ref" &&
+		git update-ref refs/hidden/x HEAD &&
+		git checkout -q master &&
+		git branch -q -D hidden
+	)
+'
+
+test_expect_success 'h= naming an unpublished ref does not vouch for the object' '
+	hidden=$(cd repos/foo && git rev-parse refs/hidden/x) &&
+	cgit_url "pinned/commit&h=refs%2fhidden%2fx&id=$hidden" >output &&
+	grep -q "^Status: 404" output &&
+	grep -q "is not reachable from any reference" output
+'
+
+test_expect_success 'the same object is refused without h= as well' '
+	hidden=$(cd repos/foo && git rev-parse refs/hidden/x) &&
+	cgit_url "pinned/commit&id=$hidden" >output &&
+	grep -q "^Status: 404" output &&
+	grep -q "is not reachable from any reference" output
+'
+
+test_expect_success 'h= naming a published branch still renders its object' '
+	side=$(cd repos/foo && git rev-parse side) &&
+	cgit_url "pinned/commit&h=side&id=$side" >output &&
+	! grep -q "^Status: 404" output &&
+	grep -q "only on side" output
+'
+
 
 test_expect_success 'a request naming only h= without a repository default mismatch is otherwise untouched' '
 	cgit_url "foo/log" >output &&

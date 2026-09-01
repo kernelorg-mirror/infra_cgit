@@ -318,6 +318,36 @@ static int match_ref_target(const struct reference *ref, void *cb_data)
  * repository has a commit-graph; without one, the generation numbers that
  * bound the walk are unavailable and the cost grows with the size of history.
  */
+/* Whether 'refname' names one of the references that 'repo' publishes -- the
+ * same set for_each_published_ref() walks above. A caller that has shown a
+ * commit to be an ancestor of such a reference has thereby shown it reachable,
+ * and can skip asking cgit_oid_is_reachable() the broader question.
+ *
+ * Not every name that resolves is published: a raw object id resolves, and so
+ * do refs/notes/ and other references cgit does not show, so this asks where
+ * the name lands rather than merely whether it resolves.
+ */
+int cgit_ref_is_published(struct repository *r, const struct cgit_repo *repo,
+			  const char *refname)
+{
+	struct object_id oid;
+	char *full = NULL;
+	int published = 0;
+
+	if (repo_dwim_ref(r, refname, strlen(refname), &oid, &full, 0) != 1)
+		goto out;
+
+	if (starts_with(full, "refs/heads/") || starts_with(full, "refs/tags/"))
+		published = 1;
+	else if (repo && repo->enable_remote_branches &&
+		 starts_with(full, "refs/remotes/"))
+		published = 1;
+
+out:
+	free(full);
+	return published;
+}
+
 int cgit_oid_is_reachable(struct repository *r, const struct cgit_repo *repo,
 			  const struct object_id *oid)
 {
