@@ -303,8 +303,22 @@ Answering these questions means walking history, which is affordable only
 when the repository has a commit-graph; without one the walk is bounded by
 commit dates rather than by generation numbers and takes orders of
 magnitude longer. Do not enable this on repositories of any size unless
-`git commit-graph write` is part of their maintenance. Default value: "0".
-See also: "repo.enable-object-reachability-check".
+`git commit-graph write --reachable` is part of their maintenance.
++
+That commit-graph is also trusted: a commit it lists is displayed without
+walking history at all, on the understanding that it was written with
+`--reachable` and so lists only commits the references reached at the
+time. A graph written any other way, for instance from packed objects,
+lists commits regardless of whether anything reaches them and defeats the
+check. Only a graph in the repository's own object directory is trusted;
+one found through `objects/info/alternates` describes the shared database
+rather than this repository and is ignored. Between rewrites the graph is
+stale by design: a commit whose reference was deleted after the graph was
+written stays displayed until the graph is next rewritten in full. Writing
+with `--split` does not drop it, even when layers are merged; only
+`--split=replace` or a write without `--split` does. Default value: "0".
+See also:
+"repo.enable-object-reachability-check".
 
 enable-remote-branches::
 	Flag which, when set to "1", will make cgit display remote branches

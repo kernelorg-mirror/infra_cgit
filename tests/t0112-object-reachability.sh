@@ -223,4 +223,26 @@ test_expect_success 'a reachable commit newer than the commit-graph is served' '
 	grep -q "SUBJECTFRESH" output
 '
 
+# The price of not walking: a commit the graph lists stays served after its
+# reference is deleted, until the graph is next rewritten in full. A mirror
+# that rewrites it on every fsck bounds how long that lasts.
+test_expect_success 'a commit is vouched for until the graph is rewritten' '
+	(
+		cd repos/lender.git &&
+		tree=$(git rev-parse HEAD^{tree}) &&
+		gone=$(git commit-tree -p HEAD -m "SUBJECTGONE" "$tree") &&
+		git update-ref refs/heads/doomed "$gone" &&
+		git commit-graph write --reachable
+	) &&
+	gone=$(cd repos/lender.git && git rev-parse doomed) &&
+	(cd repos/lender.git && git update-ref -d refs/heads/doomed) &&
+	cgit_url "lender/commit/&id=$gone" >output &&
+	! grep -q "Status: 404" output &&
+	grep -q "SUBJECTGONE" output &&
+	(cd repos/lender.git && git commit-graph write --reachable) &&
+	rm -f cache/* &&
+	cgit_url "lender/commit/&id=$gone" >output &&
+	grep -q "Status: 404 Not found" output
+'
+
 test_done
