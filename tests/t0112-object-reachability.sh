@@ -147,4 +147,80 @@ test_expect_success 'a refusal is cached and replayed' '
 	test_cmp output output.cached
 '
 
+# The commit-graph that grokmirror writes with --reachable lists exactly the
+# commits the repository's references reached when it was written, so it can
+# vouch for a commit without walking history. Only a graph in the repository's
+# own object directory may do so: git happily loads one from an alternate, and
+# an objstore's graph covers every repository sharing it.
+test_expect_success 'setup a repository borrowing from one with a commit-graph' '
+	git clone -q --bare --shared repos/foo repos/lender.git &&
+	(
+		cd repos/lender.git &&
+		tree=$(git rev-parse HEAD^{tree}) &&
+		lent=$(git commit-tree -p HEAD -m "SUBJECTLENT" "$tree") &&
+		git update-ref refs/heads/other-fork "$lent" &&
+		git commit-graph write --reachable
+	) &&
+	lent=$(cd repos/lender.git && git rev-parse other-fork) &&
+	git clone -q --bare --shared repos/lender.git repos/borrower.git &&
+	(cd repos/borrower.git && git update-ref -d refs/heads/other-fork) &&
+	test_path_is_missing repos/borrower.git/objects/info/commit-graph &&
+	test_path_is_missing repos/borrower.git/objects/info/commit-graphs &&
+	cat >>cgitrc <<-EOF
+	repo.url=borrower
+	repo.path=$PWD/repos/borrower.git
+	repo.enable-object-reachability-check=1
+
+	repo.url=lender
+	repo.path=$PWD/repos/lender.git
+	repo.enable-object-reachability-check=1
+	EOF
+'
+
+test_expect_success 'a commit in an alternate commit-graph is not vouched for' '
+	cgit_url "lender/commit/&id=$lent" >output &&
+	! grep -q "Status: 404" output &&
+	cgit_url "borrower/commit/&id=$lent" >output &&
+	grep -q "Status: 404 Not found" output &&
+	! grep -q "SUBJECTLENT" output
+'
+
+test_expect_success 'a lower chain layer kept in an alternate is not vouched for' '
+	(
+		cd repos/lender.git &&
+		rm -f objects/info/commit-graph &&
+		git commit-graph write --reachable --split
+	) &&
+	(
+		cd repos/borrower.git &&
+		tree=$(git rev-parse HEAD^{tree}) &&
+		own=$(git commit-tree -p HEAD -m "SUBJECTOWN" "$tree") &&
+		git update-ref HEAD "$own" &&
+		git commit-graph write --reachable --split
+	) &&
+	lender_layer=$(head -n1 repos/lender.git/objects/info/commit-graphs/commit-graph-chain) &&
+	grep -q "^$lender_layer$" repos/borrower.git/objects/info/commit-graphs/commit-graph-chain &&
+	rm -f cache/* &&
+	cgit_url "borrower/commit/&id=$lent" >output &&
+	grep -q "Status: 404 Not found" output &&
+	! grep -q "SUBJECTLENT" output
+'
+
+# The commit asked for sits one behind the tip, so that finding it takes the
+# walk rather than a match against the tip itself.
+test_expect_success 'a reachable commit newer than the commit-graph is served' '
+	(
+		cd repos/lender.git &&
+		git commit-graph write --reachable &&
+		tree=$(git rev-parse HEAD^{tree}) &&
+		fresh=$(git commit-tree -p other-fork -m "SUBJECTFRESH" "$tree") &&
+		tip=$(git commit-tree -p "$fresh" -m "SUBJECTTIP" "$tree") &&
+		git update-ref refs/heads/other-fork "$tip"
+	) &&
+	fresh=$(cd repos/lender.git && git rev-parse other-fork^) &&
+	cgit_url "lender/commit/&id=$fresh" >output &&
+	! grep -q "Status: 404" output &&
+	grep -q "SUBJECTFRESH" output
+'
+
 test_done
