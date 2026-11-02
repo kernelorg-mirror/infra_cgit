@@ -182,6 +182,7 @@ static void print_commit(struct commit *commit, struct rev_info *revs)
 	int columns = revs->graph ? 4 : 3;
 	struct strbuf graphbuf = STRBUF_INIT;
 	struct strbuf msgbuf = STRBUF_INIT;
+	int is_merge;
 
 	if (ctx.repo->enable_log_filecount)
 		columns++;
@@ -255,19 +256,32 @@ static void print_commit(struct commit *commit, struct rev_info *revs)
 		cgit_print_age(info->committer_date, info->committer_tz, TM_WEEK * 2);
 	}
 
-	if (!lines_counted && (ctx.repo->enable_log_filecount ||
-			       ctx.repo->enable_log_linecount)) {
+	/*
+	 * Like git log --stat, leave merges without counts: against the first
+	 * parent they cover the whole merged branch, which can take seconds
+	 * to diff.
+	 */
+	is_merge = commit->parents && commit->parents->next;
+	if (!is_merge && !lines_counted &&
+	    (ctx.repo->enable_log_filecount || ctx.repo->enable_log_linecount)) {
 		files = 0;
 		add_lines = 0;
 		rem_lines = 0;
 		cgit_diff_commit(commit, inspect_files, ctx.qry.vpath);
 	}
 
-	if (ctx.repo->enable_log_filecount)
-		htmlf("</td><td>%d", files);
-	if (ctx.repo->enable_log_linecount)
-		htmlf("</td><td><span class='deletions'>-%d</span>/"
-			"<span class='insertions'>+%d</span>", rem_lines, add_lines);
+	if (ctx.repo->enable_log_filecount) {
+		html("</td><td>");
+		if (!is_merge)
+			htmlf("%d", files);
+	}
+	if (ctx.repo->enable_log_linecount) {
+		html("</td><td>");
+		if (!is_merge)
+			htmlf("<span class='deletions'>-%d</span>/"
+			      "<span class='insertions'>+%d</span>",
+			      rem_lines, add_lines);
+	}
 
 	html("</td></tr>\n");
 
