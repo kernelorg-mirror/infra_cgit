@@ -9,6 +9,7 @@
 #define USE_THE_REPOSITORY_VARIABLE
 
 #include "cgit.h"
+#include <commit-graph.h>
 
 struct cgit_repolist cgit_repolist;
 struct cgit_context ctx;
@@ -312,9 +313,10 @@ static int match_ref_target(const struct reference *ref, void *cb_data)
  * traversal cannot be interpreted -- because refusing to serve a page is the
  * more damaging way to be wrong.
  *
- * Note that this half walks history, and is only affordable when the
- * repository has a commit-graph; without one, the generation numbers that
- * bound the walk are unavailable and the cost grows with the size of history.
+ * Note that this half walks history, which on a large repository costs
+ * seconds for an old commit even with the generation numbers a commit-graph
+ * provides. A commit the repository's own commit-graph lists is accepted
+ * without the walk; see own_commit_graph_lists().
  */
 /* Whether 'refname' names one of the references that 'repo' publishes -- the
  * same set for_each_published_ref() walks above. A caller that has shown a
@@ -346,6 +348,31 @@ out:
 	return published;
 }
 
+/* Whether the commit-graph in r's own object directory lists 'commit'.
+ *
+ * A graph written with --reachable records what the references reached, so it
+ * can stand in for the walk; one written from packed objects would vouch for
+ * every packed commit. cgitrc(5) states that contract and its staleness.
+ * --reachable also follows references cgit does not publish, such as notes
+ * and refs/meta/cgit; their commits belong to this repository all the same.
+ *
+ * Only a graph layer stored in r's own object directory counts. Git loads a
+ * graph from an alternate when the repository has none, and a split chain may
+ * keep its lower layers in one; a shared object store's graph lists the
+ * commits of every repository borrowing from it, so it vouches for nothing.
+ */
+static int own_commit_graph_lists(struct repository *r, struct commit *commit)
+{
+	struct commit_graph *g;
+	uint32_t pos;
+
+	g = repo_find_commit_pos_in_graph(r, commit, &pos);
+	/* Positions run through the whole chain, base layer first. */
+	while (g && pos < g->num_commits_in_base)
+		g = g->base_graph;
+	return g && g->odb_source == r->objects->sources;
+}
+
 int cgit_oid_is_reachable(struct repository *r, const struct cgit_repo *repo,
 			  const struct object_id *oid)
 {
@@ -364,6 +391,9 @@ int cgit_oid_is_reachable(struct repository *r, const struct cgit_repo *repo,
 		for_each_published_ref(r, repo, match_ref_target, &match);
 		return match.found;
 	}
+
+	if (own_commit_graph_lists(r, commit))
+		return 1;
 
 	for_each_published_ref(r, repo, collect_reachability_tip, &tips);
 
