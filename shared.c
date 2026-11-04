@@ -521,12 +521,24 @@ int cgit_diff_files(const struct object_id *old_oid,
 	return 0;
 }
 
+static void diff_limit_to_prefix(struct diff_options *opt, const char *prefix)
+{
+	struct pathspec_item *item;
+
+	if (!prefix)
+		return;
+	item = xcalloc(1, sizeof(*item));
+	item->match = xstrdup(prefix);
+	item->len = strlen(prefix);
+	opt->pathspec.nr = 1;
+	opt->pathspec.items = item;
+}
+
 void cgit_diff_tree(const struct object_id *old_oid,
 		    const struct object_id *new_oid,
 		    filepair_fn fn, const char *prefix, int ignorews)
 {
 	struct diff_options opt;
-	struct pathspec_item *item;
 
 	repo_diff_setup(the_repository, &opt);
 	opt.output_format = DIFF_FORMAT_CALLBACK;
@@ -537,13 +549,7 @@ void cgit_diff_tree(const struct object_id *old_oid,
 		DIFF_XDL_SET(&opt, IGNORE_WHITESPACE);
 	opt.format_callback = cgit_diff_tree_cb;
 	opt.format_callback_data = fn;
-	if (prefix) {
-		item = xcalloc(1, sizeof(*item));
-		item->match = xstrdup(prefix);
-		item->len = strlen(prefix);
-		opt.pathspec.nr = 1;
-		opt.pathspec.items = item;
-	}
+	diff_limit_to_prefix(&opt, prefix);
 	diff_setup_done(&opt);
 
 	if (old_oid && !is_null_oid(old_oid))
