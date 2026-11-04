@@ -394,6 +394,13 @@ max-blob-size::
 	Specifies the maximum size of a blob to display HTML for in KBytes.
 	Default value: "0" (limit disabled).
 
+max-diff-files::
+	Specifies the maximum number of files a diff may change and still be
+	displayed, on the commit and diff pages. A larger diff shows a notice
+	in place of its diffstat and its content; limiting it to a path can
+	bring it under the limit. The "rawdiff" and "patch" pages are not
+	limited. Default value: "0" (limit disabled).
+
 max-commit-count::
 	Specifies the number of entries to list per page in "log" view. Default
 	value: "50".

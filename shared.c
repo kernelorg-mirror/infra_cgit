@@ -560,6 +560,32 @@ void cgit_diff_tree(const struct object_id *old_oid,
 	diff_flush(&opt);
 }
 
+/* Count the files a diff between two commits changes, comparing trees alone:
+ * no blob is read and no rename is looked for. That makes the count cheap
+ * enough to take before deciding whether a diff is worth rendering at all,
+ * when rendering one of tens of thousands of files would take minutes.
+ */
+int cgit_diff_tree_count(const struct object_id *old_oid,
+			 const struct object_id *new_oid, const char *prefix)
+{
+	struct diff_options opt;
+	int nr;
+
+	repo_diff_setup(the_repository, &opt);
+	opt.output_format = DIFF_FORMAT_NO_OUTPUT;
+	opt.flags.recursive = 1;
+	diff_limit_to_prefix(&opt, prefix);
+	diff_setup_done(&opt);
+
+	if (old_oid && !is_null_oid(old_oid))
+		diff_tree_oid(old_oid, new_oid, "", &opt);
+	else
+		diff_root_tree_oid(new_oid, "", &opt);
+	nr = diff_queued_diff.nr;
+	diff_flush(&opt);
+	return nr;
+}
+
 void cgit_diff_commit(struct commit *commit, filepair_fn fn, const char *prefix)
 {
 	const struct object_id *old_oid = NULL;

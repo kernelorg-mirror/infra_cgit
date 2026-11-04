@@ -491,6 +491,22 @@ void cgit_print_diff(const char *new_rev, const char *old_rev,
 		}
 	}
 
+	if (ctx.cfg.max_diff_files) {
+		/* With "follow" the diff machinery sees the whole commit and
+		 * our callbacks apply the path, so the count has to as well.
+		 */
+		int files = cgit_diff_tree_count(old_rev_oid, new_rev_oid,
+						 current_prefix ? current_prefix : prefix);
+
+		if (files > ctx.cfg.max_diff_files) {
+			htmlf("<div class='error'>diff changes %d files, which exceeds the display limit (%d files).</div>",
+			      files, ctx.cfg.max_diff_files);
+			if (show_ctrls)
+				cgit_print_layout_end();
+			return;
+		}
+	}
+
 	/*
 	 * Clicking on a link to a file in the diff stat should show a diff
 	 * of the file, showing the diff stat limited to a single file is

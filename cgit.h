@@ -260,6 +260,7 @@ struct cgit_config {
 	int max_msg_len;
 	int max_repodesc_len;
 	int max_blob_size;
+	int max_diff_files;
 	int max_stats;
 	int noplainemail;
 	int noheader;
@@ -379,6 +380,10 @@ extern int cgit_diff_files(const struct object_id *old_oid,
 extern void cgit_diff_tree(const struct object_id *old_oid,
 			   const struct object_id *new_oid,
 			   filepair_fn fn, const char *prefix, int ignorews);
+
+extern int cgit_diff_tree_count(const struct object_id *old_oid,
+				const struct object_id *new_oid,
+				const char *prefix);
 
 extern void cgit_diff_commit(struct commit *commit, filepair_fn fn,
 			     const char *prefix);

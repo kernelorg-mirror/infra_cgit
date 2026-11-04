@@ -262,6 +262,8 @@ static void config_cb(const char *name, const char *value)
 		ctx.cfg.max_repodesc_len = atoi(value);
 	else if (!strcmp(name, "max-blob-size"))
 		ctx.cfg.max_blob_size = atoi(value);
+	else if (!strcmp(name, "max-diff-files"))
+		ctx.cfg.max_diff_files = atoi(value);
 	else if (!strcmp(name, "max-repo-count")) {
 		ctx.cfg.max_repo_count = atoi(value);
 		if (ctx.cfg.max_repo_count <= 0)
@@ -418,6 +420,7 @@ static void prepare_context(void)
 	ctx.cfg.max_msg_len = 80;
 	ctx.cfg.max_repodesc_len = 80;
 	ctx.cfg.max_blob_size = 0;
+	ctx.cfg.max_diff_files = 0;
 	ctx.cfg.max_stats = 0;
 	ctx.cfg.project_list = NULL;
 	ctx.cfg.renamelimit = -1;
